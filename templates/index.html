@@ -1218,6 +1218,8 @@
   let selectedAlbum  = null;   // { name, cover, year }
   let currentResult  = null;
   let artistDebounce = null;
+  let allFilaments   = [];
+  let ownedSet = new Set(JSON.parse(localStorage.getItem('owned_filaments') || '[]'));
 
   // ── Artist search ──────────────────────────────────────────────────────────
   const artistInput    = document.getElementById('artist-input');
@@ -1793,8 +1795,7 @@
   const EU_STORE = "https://eu.store.bambulab.com";
 
   // ── My Filaments drawer ────────────────────────────────────────────────────
-  let allFilaments = [];   // loaded from /api/filaments
-  let ownedSet = new Set(JSON.parse(localStorage.getItem('owned_filaments') || '[]'));
+  // allFilaments and ownedSet declared at top of script
 
   function saveOwned() {
     localStorage.setItem('owned_filaments', JSON.stringify([...ownedSet]));
