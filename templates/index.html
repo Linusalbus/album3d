@@ -1220,6 +1220,7 @@
   let artistDebounce = null;
   let allFilaments   = [];
   let ownedSet = new Set(JSON.parse(localStorage.getItem('owned_filaments') || '[]'));
+  const EU_STORE = "https://eu.store.bambulab.com";
 
   // ── Artist search ──────────────────────────────────────────────────────────
   const artistInput    = document.getElementById('artist-input');
@@ -1792,7 +1793,7 @@
   }
 
   // ── Region selector ───────────────────────────────────────────────────────
-  const EU_STORE = "https://eu.store.bambulab.com";
+  // EU_STORE declared at top of script
 
   // ── My Filaments drawer ────────────────────────────────────────────────────
   // allFilaments and ownedSet declared at top of script
