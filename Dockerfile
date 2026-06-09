@@ -9,4 +9,5 @@ COPY . .
 
 RUN mkdir -p output
 
-CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"]
+ENV PORT=8000
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120"]
