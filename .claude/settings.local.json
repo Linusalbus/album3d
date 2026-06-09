@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:filamentcolors.xyz)",
+      "WebFetch(domain:store.bblcdn.eu)",
+      "WebFetch(domain:forum.bambulab.com)",
+      "WebFetch(domain:printbusters.io)",
+      "WebFetch(domain:eu.store.bambulab.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
+}

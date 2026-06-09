@@ -1,0 +1,6 @@
+flask
+pillow
+requests
+numpy
+gunicorn
+python-dotenv

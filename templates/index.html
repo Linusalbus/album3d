@@ -1,0 +1,1950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Album 3D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f2f0eb;
+      --surface: #ece9e3;
+      --border: #d6d2c9;
+      --border-strong: #b8b4ab;
+      --text: #1a1917;
+      --text-muted: #7a776f;
+      --text-faint: #a8a49c;
+      --accent: #1a1917;
+      --accent-hover: #3d3a35;
+    }
+
+    body {
+      font-family: "Inter", -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Layout */
+    .layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 32px 24px;
+      gap: 32px;
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+    .logo span { color: var(--text-muted); font-weight: 400; }
+
+    /* Form */
+    .form-section { display: flex; flex-direction: column; gap: 16px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; position: relative; }
+
+    label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    input[type="text"] {
+      padding: 9px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+    input[type="text"]:focus { border-color: var(--border-strong); }
+
+    /* Autocomplete dropdown */
+    .dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0; right: 0;
+      background: #fff;
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      z-index: 100;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .dropdown-item:hover, .dropdown-item.active { background: var(--surface); }
+    .dropdown-item img {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .dropdown-item .di-name { font-size: 13px; font-weight: 500; }
+    .dropdown-item .di-sub { font-size: 11px; color: var(--text-muted); }
+    .dropdown-no-img {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0;
+    }
+
+    /* Album picker grid */
+    #album-grid {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    #album-grid::-webkit-scrollbar { width: 4px; }
+    #album-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .album-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.1s;
+      border: 1px solid transparent;
+    }
+    .album-row:hover { background: var(--surface); }
+    .album-row.selected { background: var(--surface); border-color: var(--border-strong); }
+    .album-row img {
+      width: 36px; height: 36px; border-radius: 2px;
+      object-fit: cover; flex-shrink: 0;
+    }
+    .album-row .ar-name { font-size: 13px; font-weight: 500; line-height: 1.3; }
+    .album-row .ar-year { font-size: 11px; color: var(--text-muted); }
+
+    /* Color count */
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .color-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--text);
+      height: 2px;
+      cursor: pointer;
+    }
+    .color-count {
+      font-size: 13px;
+      font-weight: 600;
+      min-width: 16px;
+      text-align: right;
+    }
+
+    /* Size / thickness presets */
+    .preset-row {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .preset-btn {
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: inherit;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.1s;
+    }
+    .preset-btn:hover { border-color: var(--border-strong); color: var(--text); }
+    .preset-btn.selected { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+    .dim-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .dim-row input[type="number"] {
+      width: 72px;
+      padding: 7px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .dim-row input[type="number"]:focus { border-color: var(--border-strong); }
+    .dim-unit { font-size: 12px; color: var(--text-muted); }
+    .dim-hint { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+
+    /* My Filaments drawer */
+    .drawer-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 200;
+    }
+    .drawer-overlay.open { display: block; }
+    .drawer {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 380px;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
+      z-index: 201;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.22s ease;
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .drawer-head h2 { font-size: 14px; font-weight: 600; }
+    .drawer-head p  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .drawer-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 18px; color: var(--text-muted); padding: 4px;
+      line-height: 1;
+    }
+    .drawer-close:hover { color: var(--text); }
+    .drawer-actions {
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .drawer-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+    .btn-text {
+      background: none; border: none;
+      font-size: 11px; font-weight: 500; font-family: inherit;
+      color: var(--text-muted); cursor: pointer; padding: 4px 0;
+      text-decoration: underline;
+    }
+    .btn-text:hover { color: var(--text); }
+    .drawer-body {
+      overflow-y: auto;
+      flex: 1;
+      padding: 12px 20px 24px;
+    }
+    .drawer-body::-webkit-scrollbar { width: 4px; }
+    .drawer-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .fil-group { margin-bottom: 20px; }
+    .fil-group-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .fil-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .fil-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 9px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.1s, border-color 0.1s;
+      user-select: none;
+    }
+    .fil-item:hover { background: var(--surface); }
+    .fil-item.owned {
+      background: var(--surface);
+      border-color: var(--border-strong);
+    }
+    .fil-item.owned .fil-check { opacity: 1; }
+    .fil-dot {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+    .fil-label { font-size: 12px; font-weight: 500; flex: 1; line-height: 1.2; }
+    .fil-check {
+      width: 14px; height: 14px;
+      border-radius: 2px;
+      background: var(--text);
+      flex-shrink: 0;
+      opacity: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .fil-check::after {
+      content: '';
+      width: 8px; height: 5px;
+      border-left: 1.5px solid var(--bg);
+      border-bottom: 1.5px solid var(--bg);
+      transform: rotate(-45deg) translate(1px, -1px);
+    }
+
+    /* Region selector */
+    .region-row { display: flex; gap: 5px; flex-wrap: wrap; }
+    .region-btn {
+      padding: 4px 10px;
+      font-size: 11px; font-weight: 600;
+      font-family: inherit;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+      transition: all 0.1s;
+    }
+    .region-btn:hover { border-color: var(--border-strong); color: var(--text); }
+    .region-btn.active {
+      background: var(--text); color: var(--bg);
+      border-color: var(--text);
+    }
+
+    /* Buy button on filament card */
+    .fc-buy {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      font-size: 11px; font-weight: 500;
+      font-family: inherit;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 3px;
+      color: var(--text);
+      text-decoration: none;
+      flex-shrink: 0;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .fc-buy:hover { background: var(--border); }
+
+    /* Toggle switch */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      cursor: pointer;
+      margin-top: 8px;
+      user-select: none;
+    }
+    .toggle-track {
+      position: relative;
+      width: 32px; height: 18px;
+      flex-shrink: 0;
+    }
+    .toggle-track input { display: none; }
+    .toggle-thumb {
+      position: absolute; inset: 0;
+      background: var(--border-strong);
+      border-radius: 9px;
+      transition: background 0.15s;
+    }
+    .toggle-thumb::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 14px; height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.15s;
+    }
+    .toggle-track input:checked + .toggle-thumb { background: var(--text); }
+    .toggle-track input:checked + .toggle-thumb::after { transform: translateX(14px); }
+    .toggle-text { font-size: 12px; color: var(--text-muted); }
+    .toggle-row:has(input:checked) .toggle-text { color: var(--text); font-weight: 500; }
+
+    /* My filaments button in sidebar */
+    .btn-my-filaments {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      color: var(--text);
+      transition: border-color 0.1s;
+    }
+    .btn-my-filaments:hover { border-color: var(--border-strong); }
+    .btn-my-filaments .mf-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--border);
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .btn-my-filaments .mf-count.has-items {
+      background: var(--text);
+      color: var(--bg);
+    }
+
+    /* Generate button */
+    .btn-generate {
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #f2f0eb;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+      letter-spacing: 0.02em;
+    }
+    .btn-generate:hover { background: var(--accent-hover); }
+    .btn-generate:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #status {
+      font-size: 12px;
+      color: var(--text-muted);
+      min-height: 18px;
+    }
+    #status.error { color: #b33; }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Saved list */
+    .saved-header {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    #saved-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      max-height: 260px;
+    }
+    #saved-list::-webkit-scrollbar { width: 4px; }
+    #saved-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .saved-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.1s;
+      border: 1px solid transparent;
+    }
+    .saved-item:hover { background: var(--surface); }
+    .saved-item.active { background: var(--surface); border-color: var(--border); }
+    .saved-item img {
+      width: 32px; height: 32px; border-radius: 2px;
+      object-fit: cover; flex-shrink: 0;
+    }
+    .saved-item .si-name { font-size: 12px; font-weight: 500; line-height: 1.3; }
+    .saved-item .si-sub { font-size: 11px; color: var(--text-muted); }
+    .saved-item .si-delete {
+      margin-left: auto;
+      font-size: 14px;
+      color: var(--text-faint);
+      padding: 2px 4px;
+      border-radius: 2px;
+      flex-shrink: 0;
+      display: none;
+    }
+    .saved-item:hover .si-delete { display: block; }
+    .saved-item .si-delete:hover { color: #b33; }
+
+    .saved-empty {
+      font-size: 12px;
+      color: var(--text-faint);
+      padding: 8px 10px;
+    }
+
+    /* Main content */
+    .main {
+      display: flex;
+      flex-direction: column;
+      padding: 32px 36px;
+      gap: 28px;
+      overflow-y: auto;
+    }
+
+    .main-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-faint);
+      gap: 8px;
+      text-align: center;
+    }
+    .main-empty .big { font-size: 48px; line-height: 1; }
+    .main-empty p { font-size: 13px; }
+
+    /* Result header */
+    .result-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .result-head h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+    .result-head p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+    .btn-save {
+      padding: 8px 14px;
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      color: var(--text);
+      white-space: nowrap;
+      transition: background 0.1s, border-color 0.1s;
+      flex-shrink: 0;
+    }
+    .btn-save:hover { background: var(--surface); }
+    .btn-save.saved { border-color: var(--text); }
+
+    /* Result grid: viewer left, right column (BOM + original), downloads full width */
+    .result-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 560px) 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .result-right {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Viewer wrap */
+    .viewer-wrap { display: flex; flex-direction: column; gap: 0; }
+    .viewer-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-bottom: 8px;
+    }
+
+    /* Viewer */
+    #viewer {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    #viewer canvas { display: block; width: 100% !important; height: 100% !important; }
+    .viewer-hint {
+      position: absolute;
+      bottom: 12px; right: 14px;
+      font-size: 11px;
+      color: var(--text-faint);
+      pointer-events: none;
+    }
+
+    /* BOM panel scrollable */
+    .bom-panel .filament-section {
+      max-height: 340px;
+      overflow-y: auto;
+    }
+    .bom-panel .filament-section::-webkit-scrollbar { width: 4px; }
+    .bom-panel .filament-section::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Downloads panel */
+    .dl-panel { }
+
+    @media (max-width: 1000px) {
+      .result-grid { grid-template-columns: 1fr; }
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 18px;
+    }
+    .panel-title {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    /* Preview image */
+    #preview-img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 2px;
+      display: block;
+    }
+
+    /* Swatches */
+    .swatches { display: flex; flex-direction: column; gap: 8px; }
+    .swatch-row { display: flex; align-items: center; gap: 10px; }
+    .swatch {
+      width: 28px; height: 28px;
+      border-radius: 2px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .swatch-hex { font-size: 13px; font-weight: 500; font-family: monospace; }
+    .swatch-label { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+    /* Download */
+    .dl-list { display: flex; flex-direction: column; gap: 8px; }
+    .dl-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 13px;
+      transition: border-color 0.1s;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .dl-btn:hover { border-color: var(--border-strong); }
+    .dl-btn .dl-icon { font-size: 16px; flex-shrink: 0; }
+    .dl-name { font-weight: 500; font-size: 12px; }
+    .dl-desc { font-size: 11px; color: var(--text-muted); }
+
+    /* Panel title row with segmented control */
+    .panel-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0;
+    }
+    .seg-ctrl {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .seg-btn {
+      padding: 4px 11px;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: inherit;
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--border);
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: background 0.1s, color 0.1s;
+      white-space: nowrap;
+    }
+    .seg-btn:last-child { border-right: none; }
+    .seg-btn:hover { color: var(--text); background: var(--border); }
+    .seg-btn.active {
+      background: var(--text);
+      color: var(--bg);
+    }
+    .seg-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* Filament matches — compact */
+    .filament-section { margin-top: 8px; }
+
+    /* Each layer = one row: swatch · hex · arrow · filament info · ΔE · buy */
+    .filament-layer {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .filament-layer:last-child { border-bottom: none; }
+
+    .layer-swatch {
+      width: 16px; height: 16px;
+      border-radius: 2px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+    .layer-hex {
+      font-size: 11px; font-weight: 600; font-family: monospace;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      min-width: 58px;
+    }
+    .layer-arrow { font-size: 11px; color: var(--border-strong); flex-shrink: 0; }
+
+    .fc-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+    .fc-name {
+      font-size: 12px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      flex: 1; min-width: 0;
+    }
+    .fc-type { display: none; } /* hidden in compact layout */
+    .fc-de {
+      font-size: 10px;
+      color: var(--text-faint);
+      font-family: monospace;
+      flex-shrink: 0;
+    }
+    .fc-de.good { color: #4a8a4a; }
+    .fc-buy {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 7px;
+      font-size: 10px; font-weight: 500;
+      font-family: inherit;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 3px;
+      color: var(--text);
+      text-decoration: none;
+      flex-shrink: 0;
+      transition: background 0.1s;
+    }
+    .fc-buy:hover { background: var(--border); }
+    .owned-badge { background: #4a6a4a !important; }
+
+    /* Manual color picker swatch button */
+    .fc-pick {
+      width: 16px; height: 16px;
+      border-radius: 3px;
+      border: 1.5px solid rgba(0,0,0,0.18);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: border-color 0.1s, box-shadow 0.1s;
+    }
+    .fc-pick:hover {
+      border-color: var(--border-strong);
+      box-shadow: 0 0 0 2px var(--border);
+    }
+    .fc-pick.is-manual {
+      border-color: var(--border-strong);
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+    }
+    .fc-reset {
+      font-size: 11px; color: var(--text-faint);
+      background: none; border: none; cursor: pointer;
+      padding: 0 2px; flex-shrink: 0; line-height: 1; display: none;
+    }
+    .fc-reset.visible { display: inline; }
+    .fc-reset:hover { color: #b33; }
+
+    /* Color picker popover */
+    .color-popover {
+      position: fixed;
+      z-index: 600;
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.14);
+      width: 280px;
+      display: none;
+      overflow: hidden;
+    }
+    .cp-search {
+      padding: 8px 10px 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cp-search input {
+      width: 100%; padding: 5px 9px;
+      background: var(--surface);
+      border: 1px solid var(--border); border-radius: 3px;
+      font-size: 12px; font-family: inherit; color: var(--text); outline: none;
+    }
+    .cp-search input:focus { border-color: var(--border-strong); }
+    .cp-palette-scroll {
+      max-height: 190px; overflow-y: auto;
+      padding: 8px 10px 4px;
+    }
+    .cp-palette-scroll::-webkit-scrollbar { width: 4px; }
+    .cp-palette-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .cp-group-label {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-faint);
+      margin: 4px 0 5px;
+    }
+    .cp-swatches { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    .cp-swatch {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 1.5px solid rgba(0,0,0,0.1);
+      cursor: pointer; flex-shrink: 0;
+      transition: transform 0.1s, box-shadow 0.1s;
+      position: relative;
+    }
+    .cp-swatch:hover { transform: scale(1.25); box-shadow: 0 2px 6px rgba(0,0,0,0.2); z-index: 1; }
+    .cp-swatch.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--text); }
+    .cp-divider { height: 1px; background: var(--border); }
+    .cp-custom {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px;
+    }
+    .cp-custom-label {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-faint);
+      flex-shrink: 0;
+    }
+    .cp-wheel-wrap {
+      position: relative; width: 24px; height: 24px;
+      border-radius: 50%; flex-shrink: 0;
+      border: 1.5px solid rgba(0,0,0,0.15); overflow: hidden; cursor: pointer;
+    }
+    .cp-wheel-wrap input[type="color"] {
+      position: absolute; inset: -4px;
+      width: calc(100% + 8px); height: calc(100% + 8px);
+      opacity: 0; cursor: pointer; padding: 0; border: none; margin: 0;
+    }
+    .cp-hex-input {
+      flex: 1; padding: 5px 8px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 3px; font-size: 12px; font-family: monospace;
+      color: var(--text); outline: none; min-width: 0;
+    }
+    .cp-hex-input:focus { border-color: var(--border-strong); }
+
+    /* Donate modal */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 700;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.18);
+      width: 100%;
+      max-width: 380px;
+      padding: 32px 28px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      text-align: center;
+      animation: modal-in 0.18s ease;
+    }
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .modal-icon { font-size: 36px; margin-bottom: 14px; line-height: 1; }
+    .modal h2 { font-size: 17px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.2px; }
+    .modal p {
+      font-size: 13px; color: var(--text-muted); line-height: 1.6;
+      margin-bottom: 22px;
+    }
+    .modal-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    .btn-donate {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 11px 16px;
+      background: #FFDD00;
+      border: none; border-radius: 5px;
+      font-size: 13px; font-weight: 600; font-family: inherit;
+      color: #1a1917; cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-donate:hover { background: #f5d000; transform: translateY(-1px); }
+    .btn-donate:active { transform: translateY(0); }
+    .btn-skip {
+      background: none; border: none;
+      font-size: 12px; color: var(--text-faint); font-family: inherit;
+      cursor: pointer; padding: 6px; transition: color 0.1s;
+    }
+    .btn-skip:hover { color: var(--text-muted); }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 11px; height: 11px;
+      border: 1.5px solid var(--border-strong);
+      border-top-color: var(--text);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 5px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #results { display: none; flex-direction: column; gap: 24px; }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">Album 3D <span>/ Generator</span></div>
+
+    <div class="form-section">
+
+      <!-- Artist search -->
+      <div class="field" id="artist-field">
+        <label>Artist</label>
+        <input id="artist-input" type="text" placeholder="Search artist…" autocomplete="off" />
+        <div class="dropdown" id="artist-dropdown" style="display:none"></div>
+      </div>
+
+      <!-- Album picker -->
+      <div class="field" id="album-field" style="display:none">
+        <label>Album</label>
+        <div id="album-grid"></div>
+      </div>
+
+      <!-- Colors -->
+      <div class="field">
+        <label>Color layers</label>
+        <div class="color-row">
+          <input type="range" id="color-slider" min="2" max="8" value="4"
+                 oninput="document.getElementById('color-count').textContent=this.value" />
+          <span class="color-count" id="color-count">4</span>
+        </div>
+      </div>
+
+      <!-- Size & Thickness -->
+      <div class="field">
+        <label>Size (mm)</label>
+        <div class="preset-row">
+          <button class="preset-btn active" onclick="setSize(this,100)">100</button>
+          <button class="preset-btn active" onclick="setSize(this,150)">150</button>
+          <button class="preset-btn active" onclick="setSize(this,180)">180 ★</button>
+          <button class="preset-btn" onclick="setSize(this,250)">250</button>
+        </div>
+        <div class="dim-row">
+          <input type="number" id="size-input" value="180" min="50" max="400" step="5" />
+          <span class="dim-unit">mm × mm</span>
+        </div>
+        <div class="dim-hint">Recommended: 180 × 180 mm</div>
+      </div>
+
+      <div class="field">
+        <label>Total thickness (mm)</label>
+        <div class="preset-row">
+          <button class="preset-btn" onclick="setThickness(this,2)">2</button>
+          <button class="preset-btn active" onclick="setThickness(this,3)">3 ★</button>
+          <button class="preset-btn" onclick="setThickness(this,4)">4</button>
+          <button class="preset-btn" onclick="setThickness(this,6)">6</button>
+        </div>
+        <div class="dim-row">
+          <input type="number" id="thickness-input" value="3" min="1" max="20" step="0.5" />
+          <span class="dim-unit">mm</span>
+        </div>
+        <div class="dim-hint" id="layer-hint">0.75 mm per layer</div>
+      </div>
+
+      <button class="btn-generate" id="go-btn" onclick="generate()">Generate model</button>
+      <div id="status"></div>
+    </div>
+
+    <!-- My Filaments -->
+    <div class="field">
+      <label>Filament matching</label>
+      <button class="btn-my-filaments" onclick="openDrawer()">
+        <span>My Filaments</span>
+        <span class="mf-count" id="owned-count">0</span>
+      </button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Saved list -->
+    <div>
+      <div class="saved-header">Saved</div>
+      <div id="saved-list"></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="main-area">
+    <div class="main-empty" id="empty-state">
+      <div class="big">◎</div>
+      <p>Search an artist and pick an album<br>to generate a 3D model</p>
+    </div>
+
+    <div id="results">
+      <div class="result-head">
+        <div>
+          <h1 id="result-title">—</h1>
+          <p id="result-sub">—</p>
+        </div>
+        <button class="btn-save" id="save-btn" onclick="saveCurrentResult()">Save</button>
+      </div>
+
+      <div class="result-grid">
+        <!-- Left: 3D viewer -->
+        <div class="viewer-wrap">
+          <div class="viewer-top-bar">
+            <div class="seg-ctrl" id="preview-seg">
+              <button class="seg-btn active" data-mode="original" onclick="setPreviewMode('original', this)">Converted</button>
+              <button class="seg-btn" data-mode="bambu"           onclick="setPreviewMode('bambu', this)">Bambu</button>
+              <button class="seg-btn" data-mode="owned"           onclick="setPreviewMode('owned', this)" id="owned-seg-btn">Owned</button>
+            </div>
+          </div>
+          <div id="viewer">
+            <div class="viewer-hint">Drag to rotate · Scroll to zoom</div>
+          </div>
+        </div>
+
+        <!-- Right: BOM on top, original below -->
+        <div class="result-right">
+          <div class="panel bom-panel">
+            <div class="panel-title-row">
+              <span class="panel-title" style="margin-bottom:0" id="bom-title">Color layers</span>
+            </div>
+            <div class="filament-section" id="filament-section" style="margin-top:14px;"></div>
+          </div>
+
+          <div class="panel" style="display:flex;flex-direction:column;gap:10px;">
+            <div class="panel-title">Original</div>
+            <img id="original-img" src="" alt="Album cover"
+                 style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:2px;display:block;" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Downloads full width below -->
+      <div class="panel dl-panel">
+        <div class="panel-title">Download</div>
+        <div class="dl-list" id="dl-list"></div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+  import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+  let renderer, scene, camera, controls, animId;
+  // layerMaterials[i] = { mat: THREE.Material, originalHex: '#RRGGBB' }
+  const layerMaterials = [];
+
+  window.loadModel = function(objUrl, mtlUrl) {
+    const container = document.getElementById('viewer');
+    if (renderer) { renderer.dispose(); cancelAnimationFrame(animId); }
+    container.innerHTML = '<div class="viewer-hint">Drag to rotate · Scroll to zoom</div>';
+    layerMaterials.length = 0;
+
+    const w = container.clientWidth, h = container.clientHeight;
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(w, h);
+    renderer.setClearColor(0xe9e6e0);
+    container.prepend(renderer.domElement);
+
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 5000);
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+    const d = new THREE.DirectionalLight(0xffffff, 0.6);
+    d.position.set(1, 2, 2); scene.add(d);
+
+    const mtl = new MTLLoader();
+    mtl.load(mtlUrl, (mats) => {
+      mats.preload();
+      const obj = new OBJLoader();
+      obj.setMaterials(mats);
+      obj.load(objUrl, (mesh) => {
+        // Collect materials by Lag_N index.
+        // Use _layerColors (set by renderResult) as the source-of-truth hex —
+        // reading back mat.color in Three.js r163 gives linear-space values
+        // that don't round-trip correctly to the original sRGB hex.
+        mesh.traverse(child => {
+          if (!child.isMesh) return;
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach(mat => {
+            const match = mat.name && mat.name.match(/Lag_(\d+)/);
+            if (match) {
+              const idx = parseInt(match[1]) - 1;
+              // Prefer the server-supplied original hex; fall back to reading mat.color
+              const originalHex = (window._layerColors && window._layerColors[idx])
+                || ('#' + [mat.color.r, mat.color.g, mat.color.b]
+                    .map(v => Math.round(v * 255).toString(16).padStart(2,'0')).join('').toUpperCase());
+              layerMaterials[idx] = { mat, originalHex };
+            }
+          });
+        });
+
+        const box = new THREE.Box3().setFromObject(mesh);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        mesh.position.sub(center);
+        const maxD = Math.max(size.x, size.y, size.z);
+        camera.position.set(0, maxD * 0.3, maxD * 1.8);
+        controls.target.set(0, 0, 0);
+        controls.update();
+        scene.add(mesh);
+
+        // Apply current mode immediately after load
+        window.applyViewerMode(window._previewMode || 'original');
+      });
+    });
+
+    function animate() {
+      animId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      const w2 = container.clientWidth, h2 = container.clientHeight;
+      renderer.setSize(w2, h2);
+      camera.aspect = w2 / h2;
+      camera.updateProjectionMatrix();
+    });
+  };
+
+  window.applyViewerMode = function(mode) {
+    if (!layerMaterials.length) return;
+    const map = mode === 'bambu' ? window._bambuMap
+              : mode === 'owned' ? window._ownedMap
+              : null;
+
+    layerMaterials.forEach((entry, idx) => {
+      if (!entry) return;
+      const { mat, originalHex } = entry;
+      // Manual override takes priority over mode map
+      const targetHex = (window._manualMap && window._manualMap[originalHex])
+                      || (map ? (map[originalHex] || originalHex) : originalHex);
+      mat.color.setStyle(targetHex);
+      mat.needsUpdate = true;
+    });
+  };
+</script>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let selectedArtist = null;   // { id, name, image }
+  let selectedAlbum  = null;   // { name, cover, year }
+  let currentResult  = null;
+  let artistDebounce = null;
+
+  // ── Artist search ──────────────────────────────────────────────────────────
+  const artistInput    = document.getElementById('artist-input');
+  const artistDropdown = document.getElementById('artist-dropdown');
+
+  // Store results in arrays so we never pass complex objects through HTML attributes
+  let artistResults = [];
+  let albumResults  = [];
+
+  artistInput.addEventListener('input', () => {
+    clearTimeout(artistDebounce);
+    const q = artistInput.value.trim();
+    if (!q) { artistDropdown.style.display = 'none'; return; }
+    artistDebounce = setTimeout(() => fetchArtists(q), 260);
+  });
+
+  artistInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') artistDropdown.style.display = 'none';
+  });
+
+  document.addEventListener('click', e => {
+    if (!document.getElementById('artist-field').contains(e.target))
+      artistDropdown.style.display = 'none';
+  });
+
+  async function fetchArtists(q) {
+    try {
+      const res = await fetch(`/search-artists?q=${encodeURIComponent(q)}`);
+      artistResults = await res.json();
+      if (!artistResults.length) { artistDropdown.style.display = 'none'; return; }
+
+      artistDropdown.innerHTML = artistResults.map((a, i) => `
+        <div class="dropdown-item" data-idx="${i}">
+          ${a.image
+            ? `<img src="${a.image}" alt="" />`
+            : `<div class="dropdown-no-img">♪</div>`}
+          <div class="di-name">${a.name}</div>
+        </div>`).join('');
+
+      artistDropdown.querySelectorAll('.dropdown-item').forEach(el => {
+        el.addEventListener('click', () => selectArtist(artistResults[+el.dataset.idx]));
+      });
+
+      artistDropdown.style.display = 'block';
+    } catch(e) {
+      console.error('Artist search failed', e);
+    }
+  }
+
+  async function selectArtist(artist) {
+    selectedArtist = artist;
+    selectedAlbum  = null;
+    artistInput.value = artist.name;
+    artistDropdown.style.display = 'none';
+
+    const albumField = document.getElementById('album-field');
+    const albumGrid  = document.getElementById('album-grid');
+    albumGrid.innerHTML = '<div class="saved-empty">Loading…</div>';
+    albumGrid.style.display = 'flex';
+    albumField.style.display = 'flex';
+
+    try {
+      const res = await fetch(`/artist-albums/${encodeURIComponent(artist.id)}`);
+      albumResults = await res.json();
+
+      if (!Array.isArray(albumResults) || albumResults.length === 0) {
+        albumGrid.innerHTML = '<div class="saved-empty">No albums found.</div>';
+        return;
+      }
+
+      albumGrid.innerHTML = albumResults.map((a, i) => `
+        <div class="album-row" data-idx="${i}">
+          ${a.cover ? `<img src="${a.cover}" alt="" />` : ''}
+          <div>
+            <div class="ar-name">${a.name}</div>
+            <div class="ar-year">${a.year}</div>
+          </div>
+        </div>`).join('');
+
+      albumGrid.querySelectorAll('.album-row').forEach(el => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll('.album-row').forEach(r => r.classList.remove('selected'));
+          el.classList.add('selected');
+          selectedAlbum = albumResults[+el.dataset.idx];
+        });
+      });
+    } catch(e) {
+      albumGrid.innerHTML = `<div class="saved-empty" style="color:#b33">Error loading albums.</div>`;
+      console.error('Album fetch failed', e);
+    }
+  }
+
+  // ── Generate ───────────────────────────────────────────────────────────────
+  async function generate() {
+    if (!selectedArtist) {
+      setStatus('Search and select an artist first.', true); return;
+    }
+    if (!selectedAlbum) {
+      setStatus('Select an album.', true); return;
+    }
+
+    const colors = document.getElementById('color-slider').value;
+    const btn    = document.getElementById('go-btn');
+
+    btn.disabled = true;
+    setStatus('<span class="spinner"></span>Generating…');
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('empty-state').style.display = 'none';
+
+    try {
+      const res = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          artist:           selectedArtist.name,
+          album:            selectedAlbum.name,
+          colors:           parseInt(colors),
+          size_mm:          parseFloat(document.getElementById('size-input').value) || 180,
+          total_mm:         parseFloat(document.getElementById('thickness-input').value) || 3.0,
+          owned_filaments:  ownedSet.size > 0 ? [...ownedSet] : [],
+          use_owned:        ownedSet.size > 0,
+        })
+      });
+      const data = await res.json();
+
+      if (!res.ok) { setStatus(data.error || 'Error.', true); return; }
+
+      setStatus('');
+      currentResult = data;
+      renderResult(data);
+
+    } catch(e) {
+      console.error(e);
+      setStatus('Error: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderResult(data) {
+    document.getElementById('result-title').textContent = `${data.artist} — ${data.album}`;
+    const subParts = [`${data.colors.length} layers`];
+    if (data.size_mm)  subParts.push(`${data.size_mm} × ${data.size_mm} mm`);
+    if (data.total_mm) subParts.push(`${data.total_mm} mm thick`);
+    if (data.layer_mm) subParts.push(`${data.layer_mm} mm/layer`);
+    document.getElementById('result-sub').textContent = subParts.join(' · ');
+
+    // Build color remap tables
+    window._layerColors  = data.colors.map(c => c.hex.toUpperCase());
+    window._bambuMap     = {};
+    window._ownedMap     = {};
+    window._manualMap    = data._manualMap    || {};
+    window._manualLabels = data._manualLabels || {};
+    let hasOwned = false;
+    data.colors.forEach(c => {
+      const fil = c.filaments || {};
+      const bambuBest = (fil.catalog || [])[0];
+      if (bambuBest) window._bambuMap[c.hex.toUpperCase()] = bambuBest.hex.toUpperCase();
+      const ownedBest = (fil.owned || [])[0];
+      if (ownedBest) { window._ownedMap[c.hex.toUpperCase()] = ownedBest.hex.toUpperCase(); hasOwned = true; }
+    });
+
+    // Restore saved mode (or default to original)
+    const savedMode = data._mode || 'original';
+    window._previewMode = savedMode;
+    document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.seg-btn[data-mode="${savedMode}"]`).classList.add('active');
+    const ownedBtn = document.getElementById('owned-seg-btn');
+    ownedBtn.disabled = !hasOwned;
+    ownedBtn.title = hasOwned ? '' : 'Add filaments you own to enable this view';
+
+    // Render BOM for current mode
+    renderBOM(savedMode, data);
+
+    // Downloads — intercept with donate modal
+    document.getElementById('dl-list').innerHTML = `
+      <button class="dl-btn" onclick="openDonateModal('/download-zip/${data.safe}', '${data.safe}.zip')">
+        <span class="dl-icon">↓</span>
+        <div><div class="dl-name">${data.safe}.zip</div>
+        <div class="dl-desc">OBJ + MTL in one folder</div></div>
+      </button>
+      <button class="dl-btn" onclick="openDonateModal('/output/${data.preview_name}', 'preview.png')">
+        <span class="dl-icon">↓</span>
+        <div><div class="dl-name">Preview image</div>
+        <div class="dl-desc">Quantized ${data.colors.length}-color PNG</div></div>
+      </button>`;
+
+    // Original album image
+    document.getElementById('original-img').src =
+      `/output/${data.original_name}?t=${Date.now()}`;
+
+    // Save button state
+    const isSaved = getSaved().some(s => s.safe === data.safe);
+    const saveBtn = document.getElementById('save-btn');
+    saveBtn.textContent = isSaved ? 'Saved to collection ✓' : 'Save to collection';
+    saveBtn.className = isSaved ? 'btn-save saved' : 'btn-save';
+
+    document.getElementById('results').style.display = 'flex';
+    document.getElementById('empty-state').style.display = 'none';
+
+    window.loadModel(`/output/${data.obj_name}`, `/output/${data.mtl_name}`);
+  }
+
+  // ── Saved list (localStorage) ──────────────────────────────────────────────
+  function getSaved() {
+    try { return JSON.parse(localStorage.getItem('saved') || '[]'); } catch { return []; }
+  }
+  function setSaved(list) {
+    localStorage.setItem('saved', JSON.stringify(list));
+  }
+
+  function saveCurrentResult() {
+    if (!currentResult) return;
+    const list = getSaved();
+    // Update existing entry if already saved (overwrite with latest style)
+    const existing = list.findIndex(s => s.safe === currentResult.safe);
+    const entry = {
+      safe:         currentResult.safe,
+      artist:       currentResult.artist,
+      album:        currentResult.album,
+      preview:      currentResult.preview_name,
+      original:     currentResult.original_name,
+      obj:          currentResult.obj_name,
+      mtl:          currentResult.mtl_name,
+      colors:       currentResult.colors,
+      // Save active style so it restores correctly
+      _mode:        window._previewMode || 'original',
+      _manualMap:   window._manualMap   || {},
+      _manualLabels:window._manualLabels|| {},
+    };
+    if (existing >= 0) list[existing] = entry;
+    else list.unshift(entry);
+    setSaved(list);
+    renderSavedList();
+    const saveBtn = document.getElementById('save-btn');
+    saveBtn.textContent = 'Saved to collection ✓';
+    saveBtn.className = 'btn-save saved';
+  }
+
+  function deleteSaved(safe) {
+    setSaved(getSaved().filter(s => s.safe !== safe));
+    renderSavedList();
+  }
+
+  function loadSaved(safe) {
+    const item = getSaved().find(s => s.safe === safe);
+    if (!item) return;
+    currentResult = {
+      artist:        item.artist,
+      album:         item.album,
+      safe:          item.safe,
+      obj_name:      item.obj,
+      mtl_name:      item.mtl,
+      preview_name:  item.preview,
+      original_name: item.original || item.preview,
+      colors:        item.colors,
+      // Restore saved style
+      _mode:         item._mode         || 'original',
+      _manualMap:    item._manualMap    || {},
+      _manualLabels: item._manualLabels || {},
+    };
+    renderResult(currentResult);
+    document.querySelectorAll('.saved-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.safe === safe);
+    });
+  }
+
+  function renderSavedList() {
+    const list = getSaved();
+    const container = document.getElementById('saved-list');
+    if (!list.length) {
+      container.innerHTML = '<div class="saved-empty">Nothing saved yet</div>';
+      return;
+    }
+    // Use data-safe + delegated click to avoid JSON-in-HTML (breaks on apostrophes etc.)
+    container.innerHTML = list.map(item => `
+      <div class="saved-item" data-safe="${item.safe}">
+        <img src="/output/${item.preview}" alt="" onerror="this.style.display='none'" />
+        <div>
+          <div class="si-name">${item.artist}</div>
+          <div class="si-sub">${item.album}</div>
+        </div>
+        <span class="si-delete" data-safe="${item.safe}">×</span>
+      </div>`).join('');
+
+    container.querySelectorAll('.saved-item').forEach(el => {
+      el.addEventListener('click', () => loadSaved(el.dataset.safe));
+    });
+    container.querySelectorAll('.si-delete').forEach(el => {
+      el.addEventListener('click', e => { e.stopPropagation(); deleteSaved(el.dataset.safe); });
+    });
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function setStatus(msg, isError = false) {
+    const el = document.getElementById('status');
+    el.innerHTML = msg;
+    el.className = isError ? 'error' : '';
+  }
+
+  // ── Size / thickness presets ──────────────────────────────────────────────
+  function setSize(btn, val) {
+    document.getElementById('size-input').value = val;
+    btn.closest('.field').querySelectorAll('.preset-btn')
+       .forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  }
+  function setThickness(btn, val) {
+    document.getElementById('thickness-input').value = val;
+    btn.closest('.field').querySelectorAll('.preset-btn')
+       .forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    updateLayerHint();
+  }
+  function updateLayerHint() {
+    const t = parseFloat(document.getElementById('thickness-input').value) || 3;
+    const c = parseInt(document.getElementById('color-slider').value) || 4;
+    document.getElementById('layer-hint').textContent =
+      `${(t / c).toFixed(2)} mm per layer`;
+  }
+  document.getElementById('thickness-input')
+    .addEventListener('input', updateLayerHint);
+  document.getElementById('color-slider')
+    .addEventListener('input', updateLayerHint);
+
+  // Mark default presets as selected on load
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelector('[onclick="setSize(this,180)"]').classList.add('selected');
+  document.querySelector('[onclick="setThickness(this,3)"]').classList.add('selected');
+
+  // ── Preview mode (3-D viewer + BOM) ──────────────────────────────────────
+  window._previewMode = 'original';
+
+  function setPreviewMode(mode, btn) {
+    window._previewMode = mode;
+    document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (typeof window.applyViewerMode === 'function') window.applyViewerMode(mode);
+    if (currentResult) renderBOM(mode, currentResult);
+  }
+
+  // ── BOM renderer — compact single-row per layer with manual color picker ──
+  function renderBOM(mode, data) {
+    const titles = { original: 'Converted colors', bambu: 'Bambu filaments', owned: 'Your filaments' };
+    document.getElementById('bom-title').textContent = titles[mode] || 'Color layers';
+
+    const html = data.colors.map(c => {
+      const origHex  = c.hex.toUpperCase();
+      const fil      = c.filaments;
+      const manualHex   = window._manualMap    && window._manualMap[origHex];
+      const manualLabel = window._manualLabels && window._manualLabels[origHex];
+      const isManual    = !!manualHex;
+
+      // Resolve suggested filament + default target for this mode
+      let f, buyUrl;
+      if (mode === 'bambu') {
+        f      = (fil.catalog || [])[0] || null;
+        buyUrl = f ? buildStoreUrl(f) : null;
+      } else if (mode === 'owned') {
+        f      = (fil.owned || [])[0] || null;
+        buyUrl = null;
+      } else {
+        f      = (fil.catalog || [])[0] || null;
+        buyUrl = f ? buildStoreUrl(f) : null;
+      }
+
+      const modeTargetHex = f ? f.hex.toUpperCase() : origHex;
+      const displayHex    = manualHex || (mode === 'original' ? origHex : modeTargetHex);
+
+      const deStr   = (!isManual && f) ? `<span class="fc-de ${f.delta_e < 10 ? 'good' : ''}">ΔE ${f.delta_e}</span>` : '';
+      const buyBtn  = (!isManual && buyUrl) ? `<a class="fc-buy" href="${buyUrl}" target="_blank" rel="noopener">Buy ↗</a>` : '';
+      const noMatch = (!isManual && mode === 'owned' && !f)
+        ? `<span style="font-size:11px;color:var(--text-faint)">No match in your collection</span>` : '';
+      const nameStr = isManual
+        ? `<span class="fc-name">${manualLabel || 'Custom'}</span>`
+        : f ? `<span class="fc-name">${f.name} <span style="font-weight:400;color:var(--text-muted)">${f.type}</span></span>` : '';
+
+      return `<div class="filament-layer" data-orig="${origHex}">
+        <div class="layer-swatch" style="background:${origHex}"></div>
+        <span class="layer-hex">${origHex}</span>
+        <span class="layer-arrow">→</span>
+        <div class="fc-pick ${isManual ? 'is-manual' : ''}" data-orig="${origHex}"
+             style="background:${displayHex}" title="Click to remap color"
+             onclick="openColorPicker('${origHex}', this)"></div>
+        ${nameStr}${noMatch}
+        ${deStr}
+        ${buyBtn}
+        <button class="fc-reset ${isManual ? 'visible' : ''}"
+                title="Reset to default" onclick="clearManualColor('${origHex}')">↺</button>
+      </div>`;
+    }).join('');
+
+    document.getElementById('filament-section').innerHTML = html;
+  }
+
+  // ── Manual color remap ────────────────────────────────────────────────────
+  // _manualMap:    origHex → targetHex string
+  // _manualLabels: origHex → display label ("Marine Blue · PLA Matte" | "Custom")
+
+  function setManualColor(origHex, newHex, label) {
+    if (!window._manualMap)    window._manualMap    = {};
+    if (!window._manualLabels) window._manualLabels = {};
+    const hex = newHex.toUpperCase();
+    window._manualMap[origHex]    = hex;
+    window._manualLabels[origHex] = label || 'Custom';
+    // Update the swatch button in the BOM row without full re-render
+    const row = document.querySelector(`.filament-layer[data-orig="${origHex}"]`);
+    if (row) {
+      const pick = row.querySelector('.fc-pick');
+      if (pick) { pick.style.background = hex; pick.classList.add('is-manual'); }
+      const rst = row.querySelector('.fc-reset');
+      if (rst) rst.classList.add('visible');
+      const nm = row.querySelector('.fc-name');
+      if (nm) nm.innerHTML = window._manualLabels[origHex];
+    }
+    // Update 3D viewer live
+    if (typeof window.applyViewerMode === 'function')
+      window.applyViewerMode(window._previewMode || 'original');
+  }
+
+  function clearManualColor(origHex) {
+    if (window._manualMap)    delete window._manualMap[origHex];
+    if (window._manualLabels) delete window._manualLabels[origHex];
+    if (currentResult) renderBOM(window._previewMode || 'original', currentResult);
+    if (typeof window.applyViewerMode === 'function')
+      window.applyViewerMode(window._previewMode || 'original');
+  }
+
+  // ── Color picker popover ──────────────────────────────────────────────────
+  let _cpOrigHex = null;
+
+  function openColorPicker(origHex, el) {
+    _cpOrigHex = origHex;
+    const pop = document.getElementById('color-popover');
+
+    // Ensure filaments are loaded
+    const ready = () => {
+      document.getElementById('cp-search-input').value = '';
+      populatePalette('');
+      // Set custom inputs to current target
+      const currentHex = (window._manualMap && window._manualMap[origHex])
+                       || _defaultTargetHex(origHex);
+      document.getElementById('cp-color-wheel').value  = currentHex;
+      document.getElementById('cp-wheel-wrap').style.background = currentHex;
+      document.getElementById('cp-hex-input').value    = currentHex;
+    };
+
+    if (!allFilaments.length) {
+      fetch('/api/filaments').then(r => r.json()).then(d => { allFilaments = d; ready(); });
+    } else {
+      ready();
+    }
+
+    // Position below the swatch
+    pop.style.display = 'block';
+    const rect = el.getBoundingClientRect();
+    const pw = 280, ph = 360;
+    let top  = rect.bottom + 6;
+    let left = rect.left - 4;
+    if (left + pw > window.innerWidth  - 8) left = window.innerWidth  - pw - 8;
+    if (top  + ph > window.innerHeight - 8) top  = rect.top - ph - 6;
+    pop.style.top  = top  + 'px';
+    pop.style.left = left + 'px';
+  }
+
+  function closeColorPicker() {
+    document.getElementById('color-popover').style.display = 'none';
+    _cpOrigHex = null;
+  }
+
+  function _defaultTargetHex(origHex) {
+    const mode = window._previewMode || 'original';
+    const map  = mode === 'bambu' ? window._bambuMap : mode === 'owned' ? window._ownedMap : null;
+    return (map && map[origHex]) ? map[origHex] : origHex;
+  }
+
+  function populatePalette(query) {
+    const q = query.toLowerCase().trim();
+    const filtered = allFilaments.filter(f =>
+      !q || f.name.toLowerCase().includes(q) || f.type.toLowerCase().includes(q));
+
+    const groups = {};
+    filtered.forEach(f => { (groups[f.type] = groups[f.type] || []).push(f); });
+
+    const activeHex = _cpOrigHex && window._manualMap && window._manualMap[_cpOrigHex];
+
+    const html = Object.entries(groups).map(([type, fils]) => `
+      <div class="cp-group-label">${type}</div>
+      <div class="cp-swatches">
+        ${fils.map(f => `
+          <div class="cp-swatch ${activeHex === f.hex.toUpperCase() ? 'active' : ''}"
+               style="background:${f.hex}" title="${f.name}"
+               onclick="selectPaletteColor('${f.hex.toUpperCase()}','${f.name.replace(/'/g,"\\'")}','${f.type}')">
+          </div>`).join('')}
+      </div>`).join('');
+
+    document.getElementById('cp-palette').innerHTML =
+      html || '<div style="font-size:12px;color:var(--text-faint);padding:2px 0">No matches</div>';
+  }
+
+  function selectPaletteColor(hex, name, type) {
+    if (!_cpOrigHex) return;
+    setManualColor(_cpOrigHex, hex, `${name} <span style="font-weight:400;color:var(--text-muted)">${type}</span>`);
+    closeColorPicker();
+  }
+
+  function cpWheelChange(value) {
+    const hex = value.toUpperCase();
+    document.getElementById('cp-hex-input').value = hex;
+    document.getElementById('cp-wheel-wrap').style.background = hex;
+    if (_cpOrigHex) setManualColor(_cpOrigHex, hex, 'Custom');
+  }
+
+  function cpHexTyping(value) {
+    // Update wheel preview live if valid
+    const hex = value.startsWith('#') ? value : '#' + value;
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+      document.getElementById('cp-color-wheel').value = hex;
+      document.getElementById('cp-wheel-wrap').style.background = hex;
+    }
+  }
+
+  function cpHexCommit(value) {
+    const hex = (value.startsWith('#') ? value : '#' + value).toUpperCase();
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex) && _cpOrigHex) {
+      document.getElementById('cp-color-wheel').value = hex;
+      document.getElementById('cp-wheel-wrap').style.background = hex;
+      document.getElementById('cp-hex-input').value = hex;
+      setManualColor(_cpOrigHex, hex, 'Custom');
+    }
+  }
+
+  // Close popover on outside click
+  document.addEventListener('click', e => {
+    const pop = document.getElementById('color-popover');
+    if (pop.style.display !== 'none'
+        && !pop.contains(e.target)
+        && !e.target.closest('.fc-pick')) {
+      closeColorPicker();
+    }
+  });
+
+  // ── Donate modal ──────────────────────────────────────────────────────────
+  let _pendingDownload = null;
+
+  function openDonateModal(url, filename) {
+    _pendingDownload = { url, filename };
+    document.getElementById('donate-overlay').classList.add('open');
+  }
+
+  function proceedDownload() {
+    document.getElementById('donate-overlay').classList.remove('open');
+    if (_pendingDownload) {
+      const a = document.createElement('a');
+      a.href = _pendingDownload.url;
+      a.download = _pendingDownload.filename;
+      a.click();
+      _pendingDownload = null;
+    }
+  }
+
+  // Close on backdrop click
+  document.getElementById('donate-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('donate-overlay')) proceedDownload();
+  });
+
+  // ── Store URL builder ─────────────────────────────────────────────────────
+  function buildStoreUrl(f) {
+    return EU_STORE + (f.slug || '/collections/bambu-lab-3d-printer-filament');
+  }
+
+  // ── Region selector ───────────────────────────────────────────────────────
+  const EU_STORE = "https://eu.store.bambulab.com";
+
+  // ── My Filaments drawer ────────────────────────────────────────────────────
+  let allFilaments = [];   // loaded from /api/filaments
+  let ownedSet = new Set(JSON.parse(localStorage.getItem('owned_filaments') || '[]'));
+
+  function saveOwned() {
+    localStorage.setItem('owned_filaments', JSON.stringify([...ownedSet]));
+    const count = ownedSet.size;
+    const el = document.getElementById('owned-count');
+    el.textContent = count;
+    el.classList.toggle('has-items', count > 0);
+  }
+
+  async function openDrawer() {
+    const overlay = document.getElementById('drawer-overlay');
+    const drawer  = document.getElementById('filament-drawer');
+    overlay.classList.add('open');
+    drawer.classList.add('open');
+
+    if (!allFilaments.length) {
+      document.getElementById('drawer-body').innerHTML =
+        '<div style="color:var(--text-muted);font-size:13px">Loading…</div>';
+      const res = await fetch('/api/filaments');
+      allFilaments = await res.json();
+      renderDrawer();
+    }
+  }
+
+  function closeDrawer() {
+    document.getElementById('drawer-overlay').classList.remove('open');
+    document.getElementById('filament-drawer').classList.remove('open');
+  }
+
+  function toggleFilament(name) {
+    if (ownedSet.has(name)) ownedSet.delete(name);
+    else ownedSet.add(name);
+    saveOwned();
+    // Update just this item
+    document.querySelectorAll('.fil-item').forEach(el => {
+      if (el.dataset.name === name)
+        el.classList.toggle('owned', ownedSet.has(name));
+    });
+    document.getElementById('drawer-owned-count').textContent =
+      `${ownedSet.size} owned`;
+  }
+
+  function selectAllGroup(type) {
+    allFilaments.filter(f => f.type === type).forEach(f => ownedSet.add(f.name));
+    saveOwned();
+    renderDrawer();
+  }
+  function clearAllGroup(type) {
+    allFilaments.filter(f => f.type === type).forEach(f => ownedSet.delete(f.name));
+    saveOwned();
+    renderDrawer();
+  }
+  function clearAllOwned() {
+    ownedSet.clear();
+    saveOwned();
+    renderDrawer();
+  }
+
+  function renderDrawer() {
+    const groups = {};
+    allFilaments.forEach(f => {
+      if (!groups[f.type]) groups[f.type] = [];
+      groups[f.type].push(f);
+    });
+
+    document.getElementById('drawer-owned-count').textContent =
+      `${ownedSet.size} owned`;
+
+    document.getElementById('drawer-body').innerHTML = Object.entries(groups).map(([type, filaments]) => `
+      <div class="fil-group">
+        <div class="fil-group-title">
+          ${type}
+          <button class="btn-text" onclick="selectAllGroup('${type}')">All</button>
+          <button class="btn-text" onclick="clearAllGroup('${type}')">None</button>
+        </div>
+        <div class="fil-grid">
+          ${filaments.map(f => {
+            const url = buildStoreUrl(f);
+            return `
+            <div class="fil-item ${ownedSet.has(f.name) ? 'owned' : ''}"
+                 data-name="${f.name}" onclick="toggleFilament('${f.name.replace(/'/g,"\\'")}')">
+              <div class="fil-dot" style="background:${f.hex}"></div>
+              <span class="fil-label">${f.name}</span>
+              <div class="fil-check"></div>
+              <a class="fc-buy" href="${url}" target="_blank" rel="noopener"
+                 onclick="event.stopPropagation()">↗</a>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+  }
+
+  // Init
+  saveOwned();   // sets count badge on load
+  renderSavedList();
+</script>
+
+<!-- Donate modal -->
+<div class="modal-overlay" id="donate-overlay">
+  <div class="modal">
+    <div class="modal-icon">☕</div>
+    <h2>Enjoy the free model?</h2>
+    <p>Album 3D is free to use. If you find it useful,<br>a coffee keeps the project going!</p>
+    <div class="modal-actions">
+      <a class="btn-donate" href="https://buymeacoffee.com/linux3d" target="_blank" rel="noopener"
+         onclick="proceedDownload()">
+        ☕ Buy me a coffee
+      </a>
+      <button class="btn-skip" onclick="proceedDownload()">No thanks, just download</button>
+    </div>
+  </div>
+</div>
+
+<!-- Color picker popover -->
+<div id="color-popover" class="color-popover">
+  <div class="cp-search">
+    <input type="text" id="cp-search-input" placeholder="Search filaments…"
+           oninput="populatePalette(this.value)" autocomplete="off" />
+  </div>
+  <div class="cp-palette-scroll" id="cp-palette"></div>
+  <div class="cp-divider"></div>
+  <div class="cp-custom">
+    <span class="cp-custom-label">Custom</span>
+    <div class="cp-wheel-wrap" id="cp-wheel-wrap">
+      <input type="color" id="cp-color-wheel" oninput="cpWheelChange(this.value)" />
+    </div>
+    <input type="text" id="cp-hex-input" class="cp-hex-input" placeholder="#RRGGBB"
+           maxlength="7" oninput="cpHexTyping(this.value)" onblur="cpHexCommit(this.value)"
+           onkeydown="if(event.key==='Enter')cpHexCommit(this.value)" />
+  </div>
+</div>
+
+<!-- My Filaments Drawer -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="filament-drawer">
+  <div class="drawer-head">
+    <div>
+      <h2>My Filaments</h2>
+      <p>Check every color you own — matching uses only your collection</p>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-actions">
+    <button class="btn-text" onclick="clearAllOwned()">Clear all</button>
+    <span class="drawer-count" id="drawer-owned-count">0 owned</span>
+  </div>
+  <div class="drawer-body" id="drawer-body">
+    <div style="color:var(--text-muted);font-size:13px">Loading…</div>
+  </div>
+</div>
+
+</body>
+</html>
