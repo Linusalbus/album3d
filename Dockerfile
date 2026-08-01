@@ -17,7 +17,6 @@ RUN mkdir -p output/clips
 # yt-dlp breaks whenever YouTube changes something, so requirements pin it to
 # "latest at build time" rather than a version — redeploy to update it.
 ENV PORT=8000 \
-    CLIP_HOST=klipyoutube \
     MAX_CLIP_SECONDS=300 \
     CLIP_TTL_SECONDS=3600 \
     MAX_CONCURRENT_RENDERS=2
