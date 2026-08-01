@@ -16,8 +16,29 @@ from PIL import Image, ImageDraw, ImageFont
 
 CLIP_DIR = os.path.join(os.path.dirname(__file__), "output", "clips")
 
-FONT_BOLD = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
-FONT_REG = "/System/Library/Fonts/Supplemental/Arial.ttf"
+def _first_font(*candidates):
+    """macOS ships Arial, Linux containers ship DejaVu — pick whichever the
+    host actually has, or Pillow raises "cannot open resource"."""
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    raise RuntimeError(
+        "No usable font found. Install fonts-dejavu-core, or set "
+        "CLIPPER_FONT_BOLD and CLIPPER_FONT_REGULAR to font files.")
+
+
+FONT_BOLD = os.environ.get("CLIPPER_FONT_BOLD") or _first_font(
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+)
+FONT_REG = os.environ.get("CLIPPER_FONT_REGULAR") or _first_font(
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+)
 
 FIT_MODES = ("stretch", "zoom", "bars")
 
