@@ -1,0 +1,50 @@
+/* Only the button lives in the page. The panel renders inside a shadow root
+   so YouTube's stylesheet can't reach it. */
+
+.ytclip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  margin-left: 8px;
+  border: none;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--yt-spec-text-primary, #f1f1f1);
+  font-family: "Roboto", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ytclip-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ytclip-btn[data-open="1"] {
+  background: #ff3b30;
+  color: #fff;
+}
+
+html[dark] .ytclip-btn,
+[dark] .ytclip-btn {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* light theme */
+html:not([dark]) .ytclip-btn {
+  background: rgba(0, 0, 0, 0.05);
+  color: #0f0f0f;
+}
+
+html:not([dark]) .ytclip-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.ytclip-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}

@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Clipper",
+  "version": "1.0.0",
+  "description": "Clip a section of the video you are watching and burn in a channel credit, without leaving YouTube.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "YouTube Clipper — open the panel on a video page"
+  }
+}

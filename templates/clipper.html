@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube Clipper</title>
+<style>
+  :root{
+    --bg:#0d0f13; --panel:#161a21; --panel-2:#1d222b; --line:#2a303b;
+    --text:#e9edf4; --muted:#8d97a8; --accent:#ff3b30; --accent-2:#ff6b60;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+  header{padding:26px 32px 18px;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:22px;letter-spacing:-.3px}
+  h1 span{color:var(--accent)}
+  header p{margin:6px 0 0;color:var(--muted);font-size:13px}
+  .wrap{display:grid;grid-template-columns:minmax(340px,420px) 1fr;gap:28px;padding:28px 32px 60px;align-items:start}
+  @media(max-width:900px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .card + .card{margin-top:18px}
+  h2{margin:0 0 14px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}
+  input[type=text],input[type=number],select{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:10px 12px;font-size:14px;outline:none}
+  input:focus,select:focus{border-color:var(--accent)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .field{margin-bottom:14px}
+  .field:last-child{margin-bottom:0}
+  .seg{display:flex;gap:6px;background:var(--panel-2);padding:4px;border-radius:10px;border:1px solid var(--line)}
+  .seg button{flex:1;background:none;border:0;color:var(--muted);padding:8px 4px;border-radius:7px;
+              font-size:12.5px;cursor:pointer;font-family:inherit}
+  .seg button.on{background:var(--accent);color:#fff;font-weight:600}
+  .corners{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--panel-2);
+           padding:4px;border-radius:10px;border:1px solid var(--line)}
+  .corners button{background:none;border:0;color:var(--muted);padding:10px 4px;border-radius:7px;
+                  font-size:12.5px;cursor:pointer;font-family:inherit}
+  .corners button.on{background:var(--accent);color:#fff;font-weight:600}
+  .slider{display:flex;align-items:center;gap:10px}
+  input[type=range]{flex:1;accent-color:var(--accent);background:transparent}
+  .val{min-width:56px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:var(--text)}
+  input[type=color]{width:100%;height:38px;padding:2px;background:var(--panel-2);
+                    border:1px solid var(--line);border-radius:9px;cursor:pointer}
+  .btn{width:100%;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:13px;
+       font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn:hover{background:var(--accent-2)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn.ghost{background:var(--panel-2);border:1px solid var(--line);color:var(--text);font-weight:500}
+  .stage{background:#000;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+         position:relative;width:100%;display:flex;align-items:center;justify-content:center}
+  .stage img.bgshot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.6}
+  .stage.bars img.bgshot{object-fit:contain}
+  .stage.stretch img.bgshot{object-fit:fill}
+  #cardImg{position:absolute;left:0;top:0;transform-origin:left center}
+  .meta{display:flex;gap:12px;align-items:center;margin-top:14px}
+  .meta img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--panel-2)}
+  .meta b{display:block;font-size:14px}
+  .meta small{color:var(--muted)}
+  .status{margin-top:14px;font-size:13px;color:var(--muted);min-height:20px}
+  .status.err{color:#ff6b60}
+  video{width:100%;border-radius:12px;background:#000;display:block}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:6px}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);
+        border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;
+        vertical-align:-2px;margin-right:7px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>YouTube <span>Clipper</span></h1>
+  <p>Paste a link, pick a timestamp range, and get a clip with an animated channel credit burned in.</p>
+</header>
+
+<div class="wrap">
+  <!-- ------------------------------------------------ controls -->
+  <div>
+    <div class="card">
+      <h2>Source</h2>
+      <div class="field">
+        <label>YouTube link</label>
+        <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=…"
+               value="{{ 'https://www.youtube.com/watch?v=' ~ video_id if video_id else '' }}">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Start</label>
+          <input type="text" id="start" placeholder="1:51" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label>End</label>
+          <input type="text" id="end" placeholder="2:04" inputmode="numeric">
+        </div>
+      </div>
+      <div class="hint" id="lenHint" style="margin-top:-6px">
+        Just type the digits — <b>151</b> becomes <b>1:51</b>.
+      </div>
+      <div class="meta" id="meta" style="display:none">
+        <img id="avatar" alt="">
+        <div>
+          <b id="vtitle">—</b>
+          <small id="vchannel">—</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Output</h2>
+      <div class="row">
+        <div class="field">
+          <label>Resolution</label>
+          <select id="resolution">
+            <option value="2160">2160p (4K)</option>
+            <option value="1440">1440p</option>
+            <option value="1080" selected>1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+            <option value="360">360p</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <input type="number" id="resolutionCustom" min="144" max="4320" step="2"
+                 placeholder="e.g. 1600" value="1080" style="display:none;margin-top:8px">
+        </div>
+        <div class="field">
+          <label>Aspect ratio</label>
+          <select id="aspect">
+            <option value="16:9" selected>16:9 — landscape</option>
+            <option value="9:16">9:16 — vertical</option>
+            <option value="1:1">1:1 — square</option>
+            <option value="4:5">4:5 — portrait</option>
+            <option value="4:3">4:3</option>
+            <option value="21:9">21:9 — cinematic</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <input type="text" id="aspectCustom" placeholder="e.g. 2.39:1"
+                 value="16:9" style="display:none;margin-top:8px">
+        </div>
+      </div>
+      <div class="hint" style="margin:-6px 0 12px">
+        Custom resolution is the short side (height for landscape formats).
+      </div>
+      <div class="field">
+        <label>Aspect ratio fit</label>
+        <div class="seg" id="fit">
+          <button data-v="bars" class="on">Black bars</button>
+          <button data-v="zoom">Zoom to fill</button>
+          <button data-v="stretch">Stretch to fill</button>
+        </div>
+      </div>
+      <div class="hint" id="dims">Output: 1920 × 1080</div>
+    </div>
+
+    <div class="card">
+      <h2>Credit placement &amp; animation</h2>
+      <div class="field">
+        <label>Position</label>
+        <div class="corners" id="position">
+          <button data-v="top-left" class="on">Top left</button>
+          <button data-v="top-right">Top right</button>
+          <button data-v="bottom-left">Bottom left</button>
+          <button data-v="bottom-right">Bottom right</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Horizontal margin</label>
+        <div class="slider">
+          <input type="range" id="marginX" min="0" max="20" step="0.25" value="4.5">
+          <span class="val" id="marginXV">4.5 %</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Vertical margin</label>
+        <div class="slider">
+          <input type="range" id="marginY" min="0" max="20" step="0.25" value="4.5">
+          <span class="val" id="marginYV">4.5 %</span>
+        </div>
+        <div class="hint">Both are a percentage of the video's short side, so equal
+          values mean equal pixels — 0 % sits flush against the corner.</div>
+      </div>
+      <div class="field">
+        <label>Transition duration</label>
+        <div class="slider">
+          <input type="range" id="transition" min="0" max="3" step="0.05" value="0.6">
+          <span class="val" id="transitionV">0.60 s</span>
+        </div>
+        <div class="hint">Slide-in from the left, and slide-out at the end.</div>
+      </div>
+      <div class="field">
+        <label>Credit on-screen duration</label>
+        <div class="slider">
+          <input type="range" id="credit" min="0.5" max="30" step="0.1" value="10">
+          <span class="val" id="creditV">10.0 s</span>
+        </div>
+        <div class="hint">Time fully visible, not counting the transitions.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Credit box style</h2>
+      <div class="field">
+        <label>Outline thickness</label>
+        <div class="slider">
+          <input type="range" id="ow" min="0" max="12" step="1" value="5">
+          <span class="val" id="owV">5 px</span>
+        </div>
+      </div>
+      <div class="row3">
+        <div class="field">
+          <label>Outline color</label>
+          <input type="color" id="oc" value="#ffffff">
+        </div>
+        <div class="field">
+          <label>Box color</label>
+          <input type="color" id="bc" value="#000000">
+        </div>
+        <div class="field">
+          <label>Text color</label>
+          <input type="color" id="tc" value="#ffffff">
+        </div>
+      </div>
+      <div class="field">
+        <label>Box opacity</label>
+        <div class="slider">
+          <input type="range" id="op" min="0" max="1" step="0.01" value="0.55">
+          <span class="val" id="opV">55 %</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Box size</label>
+        <div class="slider">
+          <input type="range" id="cs" min="0.5" max="1.8" step="0.05" value="0.9">
+          <span class="val" id="csV">90 %</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn" id="go">Create clip</button>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------ preview -->
+  <div>
+    <div class="card">
+      <h2>Preview</h2>
+      <div class="stage bars" id="stage" style="aspect-ratio:16/9">
+        <img class="bgshot" id="bgshot" alt="" style="display:none">
+        <img id="cardImg" alt="" style="display:none">
+      </div>
+      <div class="hint" style="margin-top:10px">
+        The credit card is rendered by the same code that burns it into the video.
+      </div>
+      <button class="btn ghost" id="replay" style="margin-top:12px">Replay animation</button>
+    </div>
+
+    <div class="card" id="resultCard" style="display:none">
+      <h2>Result</h2>
+      <video id="result" controls></video>
+      <a id="dl" download><button class="btn" style="margin-top:12px">Download clip</button></a>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let info = null, fit = "bars", position = "top-left", previewTimer = null;
+let cardBox = {x:0, y:0, w:1};   // last previewed card geometry, in video pixels
+
+/* ---------- timestamp inputs ---------- */
+/* Digits are read right-to-left: 121 -> 1:21, 10245 -> 1:02:45. */
+function maskTime(raw){
+  const [d, frac] = String(raw).split(".");
+  const digits = (d || "").replace(/\D/g, "").slice(-6);
+  if (!digits) return "";
+  let out;
+  if (digits.length <= 2)      out = "0:" + digits.padStart(2, "0");
+  else if (digits.length <= 4) out = digits.slice(0, -2).replace(/^0+(?=\d)/, "")
+                                     + ":" + digits.slice(-2);
+  else                         out = digits.slice(0, -4).replace(/^0+(?=\d)/, "")
+                                     + ":" + digits.slice(-4, -2) + ":" + digits.slice(-2);
+  // keep a trailing "." so fractional seconds survive being retyped
+  return frac === undefined ? out : out + "." + frac.replace(/\D/g, "");
+}
+
+function toSeconds(text){
+  if (!text) return null;
+  const parts = text.split(":").map(Number);
+  if (parts.some(isNaN)) return null;
+  return parts.reduce((acc, p) => acc * 60 + p, 0);
+}
+
+["start","end"].forEach(id => {
+  const el = $(id);
+  el.addEventListener("input", () => {
+    // Only snap once the third digit lands, so typing "1" or "12" isn't fought.
+    if ((el.value.replace(/\D/g, "") || "").length >= 3) el.value = maskTime(el.value);
+    updateLength();
+  });
+  el.addEventListener("blur", () => { el.value = maskTime(el.value); updateLength(); });
+});
+
+function updateLength(){
+  const a = toSeconds($("start").value), b = toSeconds($("end").value);
+  const hint = $("lenHint");
+  if (a === null || b === null || !$("start").value || !$("end").value){
+    hint.innerHTML = "Just type the digits — <b>151</b> becomes <b>1:51</b>.";
+  } else if (b <= a){
+    hint.innerHTML = '<span style="color:#ff6b60">End must be after start.</span>';
+  } else {
+    hint.textContent = `Clip length: ${(b - a).toFixed(2).replace(/\.?0+$/,"")} s`;
+  }
+}
+
+/* ---------- settings plumbing ---------- */
+const sliders = [
+  ["transition","transitionV", v => (+v).toFixed(2)+" s"],
+  ["credit","creditV",         v => (+v).toFixed(1)+" s"],
+  ["ow","owV",                 v => (+v)+" px"],
+  ["op","opV",                 v => Math.round(v*100)+" %"],
+  ["marginX","marginXV",       v => (+v).toFixed(2).replace(/\.?0+$/,"")+" %"],
+  ["marginY","marginYV",       v => (+v).toFixed(2).replace(/\.?0+$/,"")+" %"],
+  ["cs","csV",                 v => Math.round(v*100)+" %"],
+];
+sliders.forEach(([id,out,fmt]) => {
+  const el = $(id);
+  const sync = () => { $(out).textContent = fmt(el.value); };
+  el.addEventListener("input", () => { sync(); schedulePreview(); });
+  sync();
+});
+
+$("fit").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  fit = b.dataset.v;
+  [...$("fit").children].forEach(x => x.classList.toggle("on", x === b));
+  $("stage").className = "stage " + fit;
+});
+
+$("position").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  position = b.dataset.v;
+  [...$("position").children].forEach(x => x.classList.toggle("on", x === b));
+  schedulePreview();
+});
+
+/* "Custom…" swaps the select for a free-text field next to it */
+function currentResolution(){
+  return $("resolution").value === "custom" ? $("resolutionCustom").value
+                                            : $("resolution").value;
+}
+function currentAspect(){
+  return $("aspect").value === "custom" ? $("aspectCustom").value.trim()
+                                        : $("aspect").value;
+}
+function aspectRatio(){
+  const t = currentAspect().replace("/", ":").replace(",", ".");
+  const r = t.includes(":") ? (parseFloat(t.split(":")[0]) / parseFloat(t.split(":")[1]))
+                            : parseFloat(t);
+  return (isFinite(r) && r >= 0.1 && r <= 10) ? r : null;
+}
+
+["resolution","aspect"].forEach(id => $(id).addEventListener("change", () => {
+  $(id + "Custom").style.display = $(id).value === "custom" ? "block" : "none";
+  if ($(id).value !== "custom") $(id + "Custom").value = $(id).value;
+  applyFormat();
+}));
+["resolutionCustom","aspectCustom"].forEach(id => $(id).addEventListener("input", applyFormat));
+
+function applyFormat(){
+  const r = aspectRatio();
+  if (r) $("stage").style.aspectRatio = r + " / 1";
+  updateDims(); schedulePreview();
+}
+["oc","bc","tc"].forEach(id => $(id).addEventListener("input", schedulePreview));
+
+function updateDims(){
+  const r = aspectRatio(), base = Math.round(+currentResolution());
+  if (!r) return $("dims").innerHTML =
+    '<span style="color:#ff6b60">Aspect ratio must look like 16:9 (between 1:10 and 10:1).</span>';
+  if (!(base >= 144 && base <= 4320)) return $("dims").innerHTML =
+    '<span style="color:#ff6b60">Resolution must be between 144 and 4320.</span>';
+  let w,h;
+  if (r >= 1) { h = base; w = Math.round(h*r); }
+  else        { w = base; h = Math.round(w/r); }
+  $("dims").textContent = `Output: ${w - w%2} × ${h - h%2}`;
+}
+updateDims();
+
+function settings(){
+  return {
+    url: $("url").value.trim(),
+    range: maskTime($("start").value) + "-" + maskTime($("end").value),
+    resolution: currentResolution(),
+    aspect: currentAspect(),
+    fit,
+    transition: +$("transition").value,
+    credit_duration: +$("credit").value,
+    outline_width: +$("ow").value,
+    outline_color: $("oc").value,
+    box_color: $("bc").value,
+    text_color: $("tc").value,
+    box_opacity: +$("op").value,
+    card_scale: +$("cs").value,
+    position,
+    margin_x: +$("marginX").value,
+    margin_y: +$("marginY").value,
+  };
+}
+
+/* ---------- video lookup ---------- */
+let lastUrl = "";
+$("url").addEventListener("change", loadInfo);
+$("url").addEventListener("blur", loadInfo);
+
+async function loadInfo(){
+  const url = $("url").value.trim();
+  if (!url || url === lastUrl) return;
+  lastUrl = url;
+  setStatus('<span class="spin"></span>Reading video info…');
+  try {
+    const r = await fetch("/clipper/info?url=" + encodeURIComponent(url));
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    info = d;
+    $("meta").style.display = "flex";
+    $("vtitle").textContent = d.title;
+    $("vchannel").textContent = d.channel;
+    $("avatar").src = d.avatar || d.thumbnail || "";
+    if (d.thumbnail){ $("bgshot").src = d.thumbnail; $("bgshot").style.display = "block"; }
+    setStatus("");
+    schedulePreview();
+  } catch(e){ setStatus(e.message, true); }
+}
+
+/* ---------- live credit-card preview ---------- */
+function schedulePreview(){
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(renderPreview, 220);
+}
+
+async function renderPreview(){
+  const s = settings();
+  const body = Object.assign({}, s, {
+    title: info ? info.title : "Video title goes here",
+    channel: info ? info.channel : "Channel name",
+    avatar: info ? (info.avatar || info.thumbnail) : null,
+  });
+  try {
+    const r = await fetch("/clipper/preview", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(body)});
+    const d = await r.json();
+    if (d.error) return;
+    const img = $("cardImg");
+    img.src = d.png;
+    img.style.display = "block";
+    img.style.width = (d.width / d.video_width * 100) + "%";
+    img.style.left = (d.x / d.video_width * 100) + "%";
+    img.style.top  = (d.y / d.video_height * 100) + "%";
+    cardBox = {x: d.x, y: d.y, w: d.width};
+    playAnimation();
+  } catch(e){}
+}
+
+function playAnimation(){
+  const img = $("cardImg"), s = settings();
+  const t = s.transition, hold = s.credit_duration;
+  img.getAnimations().forEach(a => a.cancel());
+  // fully off the left edge: its own width plus however far in it sits
+  const off = `translateX(-${100 + cardBox.x / cardBox.w * 100}%)`;
+  if (t <= 0){
+    img.animate([{transform:"none"},{transform:"none"}],
+                {duration:(hold*1000)||1});
+    return;
+  }
+  const total = (t*2 + hold) * 1000;
+  img.animate([
+    {transform:off,             offset:0},
+    {transform:"translateX(0)", offset:t/(t*2+hold)},
+    {transform:"translateX(0)", offset:(t+hold)/(t*2+hold)},
+    {transform:off,             offset:1},
+  ], {duration: total, easing:"linear"});   // settles back into the resting spot
+}
+$("replay").addEventListener("click", playAnimation);
+
+/* ---------- render ---------- */
+function setStatus(html, err){
+  $("status").innerHTML = html;
+  $("status").className = "status" + (err ? " err" : "");
+}
+
+$("go").addEventListener("click", async () => {
+  const s = settings();
+  const a = toSeconds(maskTime($("start").value)), b = toSeconds(maskTime($("end").value));
+  if (!s.url)  return setStatus("Paste a YouTube link first.", true);
+  if (a === null || b === null) return setStatus("Enter a start and an end time.", true);
+  if (b <= a)  return setStatus("End time must be after start time.", true);
+  if (!aspectRatio()) return setStatus("Aspect ratio must look like 16:9.", true);
+  const base = Math.round(+currentResolution());
+  if (!(base >= 144 && base <= 4320))
+    return setStatus("Resolution must be between 144 and 4320.", true);
+  $("go").disabled = true;
+  setStatus('<span class="spin"></span>Downloading and rendering — this can take a minute…');
+  try {
+    const r = await fetch("/clipper/render", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(s)});
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    $("resultCard").style.display = "block";
+    $("result").src = "/clips/" + d.file;
+    $("dl").href = "/clips/" + d.file;
+    $("dl").setAttribute("download", d.file);
+    setStatus(`Done — ${d.width}×${d.height}, ${d.duration}s.`);
+    $("resultCard").scrollIntoView({behavior:"smooth", block:"nearest"});
+  } catch(e){ setStatus(e.message, true); }
+  finally { $("go").disabled = false; }
+});
+
+// Arrived via klipyoutube.com/watch?v=… — go straight to loading the video.
+if ($("url").value.trim()) loadInfo();
+else renderPreview();
+</script>
+</body>
+</html>
