@@ -16,9 +16,12 @@ RUN mkdir -p output/clips
 
 # yt-dlp breaks whenever YouTube changes something, so requirements pin it to
 # "latest at build time" rather than a version — redeploy to update it.
-ENV PORT=8000 \
-    MAX_CLIP_SECONDS=300 \
+ENV MAX_CLIP_SECONDS=300 \
     CLIP_TTL_SECONDS=3600 \
     MAX_CONCURRENT_RENDERS=2
 
-CMD gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 300
+# Bound to 8000 deliberately: the Railway domain forwards to that port, and
+# honouring the injected $PORT (8080) is what makes the proxy return 502.
+EXPOSE 8000
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8000", \
+     "--workers", "2", "--threads", "4", "--timeout", "300"]
