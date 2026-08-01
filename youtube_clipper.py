@@ -93,12 +93,33 @@ def _ytdlp():
     return _binary("yt-dlp", "brew install yt-dlp")
 
 
+_COOKIE_FILE = None
+
+
+def _cookies_from_env():
+    """Hosted platforms have no good place to put a cookies.txt, so accept the
+    file's contents in YTDLP_COOKIES_CONTENT and materialise it at runtime.
+    Keeping it out of the image means it never lands in git."""
+    global _COOKIE_FILE
+    if _COOKIE_FILE:
+        return _COOKIE_FILE
+    blob = os.environ.get("YTDLP_COOKIES_CONTENT")
+    if not blob:
+        return None
+    path = os.path.join(tempfile.gettempdir(), "yt_cookies.txt")
+    with open(path, "w") as fh:
+        fh.write(blob.replace("\\n", "\n"))
+    os.chmod(path, 0o600)
+    _COOKIE_FILE = path
+    return path
+
+
 def _ytdlp_auth_args():
     """YouTube throttles and bot-checks datacenter IPs far harder than home
     connections, so a hosted deployment usually needs cookies, a proxy, or
     both. Supplied through the environment, never committed."""
     args = []
-    cookies = os.environ.get("YTDLP_COOKIES")
+    cookies = os.environ.get("YTDLP_COOKIES") or _cookies_from_env()
     if cookies and os.path.exists(cookies):
         args += ["--cookies", cookies]
     browser = os.environ.get("YTDLP_COOKIES_FROM_BROWSER")
