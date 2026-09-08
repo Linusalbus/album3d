@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# YouTube Clipper — runs on your own machine.
+#
+# Everything happens locally: yt-dlp fetches from your own connection, so
+# YouTube sees you rather than a datacentre, and ffmpeg does the cutting here.
+# Nothing is uploaded and there is no server to pay for.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+PORT="${PORT:-5055}"
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "ffmpeg is missing. Install it with:  brew install ffmpeg" >&2
+  exit 1
+fi
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is missing. Install it with:  curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+  exit 1
+fi
+
+echo "YouTube Clipper  →  http://localhost:$PORT"
+echo "Press Ctrl-C to stop."
+
+# Open the browser once the server is actually answering, not before.
+( for _ in $(seq 1 40); do
+    if curl -fsS -o /dev/null "http://localhost:$PORT/" 2>/dev/null; then
+      command -v open >/dev/null && open "http://localhost:$PORT/"
+      break
+    fi
+    sleep 0.25
+  done ) &
+
+# uv builds the environment from requirements.txt on first run and reuses it
+# afterwards, so there is no venv to create or activate by hand.
+PORT="$PORT" exec uv run --quiet --with-requirements requirements.txt python app.py
