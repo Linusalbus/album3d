@@ -15,6 +15,18 @@ Pixel (PWA) ⇄ HTTPS ⇄ relay (Railway) ⇄ HTTPS ⇄ Mac (Claude Code hooks +
 
 Nothing listens on the Mac; both sides only make outgoing requests to the relay, so it works on any network.
 
+## Quick setup: everything on your Mac (free)
+
+Needs [Node.js](https://nodejs.org) 18+ and [Tailscale](https://tailscale.com/download/mac) (signed in). Then, from this folder:
+
+```sh
+bash mac/setup-mac.sh
+```
+
+It runs the relay on the Mac (starts at login), publishes it on a fixed https address with Tailscale Funnel, connects Claude Code (hooks, status line, MCP server, `~/.claude/CLAUDE.md` block) and opens a pairing page with a QR code for the phone. Run it again any time; `bash mac/setup-mac.sh --uninstall` removes it. The app is reachable while the Mac is awake.
+
+Prefer a cloud host that is always on? Follow steps 1–3 below instead.
+
 ## 1. Deploy the relay
 
 The relay is a single zero-dependency Node file (`relay/server.mjs`) that also serves the phone app.
