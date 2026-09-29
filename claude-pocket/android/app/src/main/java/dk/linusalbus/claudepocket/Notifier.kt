@@ -16,6 +16,8 @@ object Notifier {
     private const val CH_STATUS = "status"
     private const val CH_APPROVALS = "approvals"
     private const val CH_MESSAGES = "messages"
+    private const val CH_UPDATES = "updates"
+    private const val UPDATE_ID = 3
     const val REPLY_KEY = "reply"
     private const val ACCENT = 0xFFD97757.toInt()
 
@@ -28,6 +30,9 @@ object Notifier {
             },
             NotificationChannel(CH_MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Updates Claude sends you"
+            },
+            NotificationChannel(CH_UPDATES, "App updates", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "A new version of Claude Pocket is ready to install"
             },
             NotificationChannel(CH_STATUS, "Connection", NotificationManager.IMPORTANCE_MIN).apply {
                 description = "Shows that Claude Pocket is connected. You can hide this channel."
@@ -114,6 +119,23 @@ object Notifier {
         }
         p.lastMessageTs = newest
         p.primed = true
+
+        // ---- app update waiting on the Mac
+        val app = state.optJSONObject("app")
+        val latest = app?.optLong("versionCode") ?: 0L
+        if (app != null && latest > Updater.installedVersion(c) && latest > p.offeredVersion) {
+            p.offeredVersion = latest
+            val i = Intent(c, MainActivity::class.java).putExtra("update", true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            nm(c).notify(UPDATE_ID, Notification.Builder(c, CH_UPDATES)
+                .setSmallIcon(R.drawable.ic_stat)
+                .setColor(ACCENT)
+                .setContentTitle("Claude Pocket update ready")
+                .setContentText("Version ${app.optString("versionName")} — tap to install")
+                .setAutoCancel(true)
+                .setContentIntent(PendingIntent.getActivity(c, UPDATE_ID, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+                .build())
+        }
     }
 
     private fun postRequest(c: Context, r: JSONObject) {

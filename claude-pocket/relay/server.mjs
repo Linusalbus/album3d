@@ -14,6 +14,8 @@ const DATA_DIR = process.env.DATA_DIR || path.join(HERE, 'data');
 const NTFY_URL = process.env.NTFY_URL || ''; // e.g. https://ntfy.sh/some-long-random-topic
 const PUBLIC_URL = process.env.PUBLIC_URL || '';
 const MAX_UPLOAD = 60 * 1024 * 1024;
+const MAX_APK = 150 * 1024 * 1024;
+const APK_FILE = () => path.join(DATA_DIR, 'ClaudePocket.apk');
 const FILE_TTL_MS = 3 * 24 * 3600 * 1000;
 
 if (TOKEN.length < 16) {
@@ -123,6 +125,7 @@ function snapshot() {
     settings: state.settings,
     files: Object.values(state.files).map(publicFile).sort((a, b) => b.createdAt - a.createdAt),
     threads: threadList(),
+    app: state.app || null,
     now: Date.now(),
   };
 }
@@ -526,6 +529,37 @@ async function handle(req, res) {
       changed('files');
     }
     return send(res, 200, { ok: true });
+  }
+
+  // ---- Android app updates (OTA): CI or the Mac uploads a build, the app installs it
+  if (m === 'POST' && p === '/api/app/apk') {
+    const versionCode = Number(url.searchParams.get('versionCode'));
+    if (!Number.isInteger(versionCode) || versionCode < 1) return send(res, 400, { error: 'versionCode required' });
+    if (state.app && versionCode <= state.app.versionCode) return send(res, 200, { ok: true, skipped: 'not newer', app: state.app });
+    const buf = await readBody(req, MAX_APK);
+    if (buf.length < 1000 || buf.readUInt32LE(0) !== 0x04034b50) return send(res, 400, { error: 'Not an APK' });
+    await fs.promises.writeFile(APK_FILE() + '.tmp', buf);
+    await fs.promises.rename(APK_FILE() + '.tmp', APK_FILE());
+    state.app = {
+      versionCode,
+      versionName: (url.searchParams.get('versionName') || `1.0.${versionCode}`).slice(0, 40),
+      size: buf.length,
+      sha256: crypto.createHash('sha256').update(buf).digest('hex'),
+      uploadedAt: Date.now(),
+    };
+    changed('app');
+    return send(res, 200, { ok: true, app: state.app });
+  }
+  if (m === 'GET' && p === '/api/app') return send(res, 200, { app: state.app || null });
+  if (m === 'GET' && p === '/api/app/apk') {
+    if (!state.app || !fs.existsSync(APK_FILE())) return send(res, 404, { error: 'No build uploaded yet' });
+    res.writeHead(200, {
+      'Content-Type': 'application/vnd.android.package-archive',
+      'Content-Length': state.app.size,
+      'Content-Disposition': `attachment; filename="ClaudePocket-${state.app.versionName}.apk"`,
+      'Cache-Control': 'no-store',
+    });
+    return fs.createReadStream(APK_FILE()).pipe(res);
   }
 
   // ---- messages (anyone with the token: routines, scripts, the Mac CLI)

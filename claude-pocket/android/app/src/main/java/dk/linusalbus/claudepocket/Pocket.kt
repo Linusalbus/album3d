@@ -41,6 +41,9 @@ class Pairing(context: Context) {
     var lastMessageTs: Long
         get() = prefs.getLong("lastMessageTs", 0)
         set(v) = prefs.edit().putLong("lastMessageTs", v).apply()
+    var offeredVersion: Long
+        get() = prefs.getLong("offeredVersion", 0)
+        set(v) = prefs.edit().putLong("offeredVersion", v).apply()
     var primed: Boolean
         get() = prefs.getBoolean("primed", false)
         set(v) = prefs.edit().putBoolean("primed", v).apply()

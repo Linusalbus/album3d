@@ -165,6 +165,10 @@ class MainActivity : Activity() {
                 return "#/send"
             }
         }
+        if (intent.getBooleanExtra("update", false)) {
+            intent.removeExtra("update")
+            Updater.start(this)
+        }
         return intent.getStringExtra("route")
     }
 
@@ -218,6 +222,10 @@ class MainActivity : Activity() {
         @JavascriptInterface fun version(): String = runCatching {
             packageManager.getPackageInfo(packageName, 0).versionName
         }.getOrNull() ?: ""
+
+        @JavascriptInterface fun versionCode(): Long = Updater.installedVersion(this@MainActivity)
+
+        @JavascriptInterface fun installUpdate() = runOnUiThread { Updater.start(this@MainActivity) }
 
         @JavascriptInterface fun takeShared(): String = synchronized(shared) {
             val out = JSONObject().put("files", JSONArray(shared.toString())).put("text", sharedText)

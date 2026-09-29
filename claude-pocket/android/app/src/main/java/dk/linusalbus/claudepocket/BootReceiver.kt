@@ -4,9 +4,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 
-/** Reconnects after the phone restarts, so notifications keep working without opening the app. */
+/** Reconnects after a restart or an app update, so notifications keep working without opening the app. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) startPocketService(context)
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            startPocketService(context)
+        }
     }
 }

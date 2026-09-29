@@ -17,6 +17,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      POCKET_RELAY_URL: ${{ secrets.POCKET_RELAY_URL }}
+      POCKET_TOKEN: ${{ secrets.POCKET_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,3 +67,15 @@ jobs:
           git add ClaudePocket.apk
           git commit -q -m "Claude Pocket APK build ${{ github.run_number }} (${{ github.sha }})"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" pocket-android-apk
+
+      # Over-the-air: hand the build to the relay on the Mac; the app offers it right away.
+      # (If the Mac is asleep, its watch agent fetches the build from the branch above later.)
+      - name: Send the update to the phone (OTA)
+        if: env.POCKET_RELAY_URL != ''
+        continue-on-error: true
+        run: |
+          curl -fsS --retry 2 -X POST \
+            -H "Authorization: Bearer $POCKET_TOKEN" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @ClaudePocket.apk \
+            "$POCKET_RELAY_URL/api/app/apk?versionCode=${{ github.run_number }}&versionName=1.0.${{ github.run_number }}"

@@ -118,7 +118,17 @@ echo "Relay running on port $PORT"
 bold "5/5  Connecting Claude Code"
 # The Mac talks to its own relay over localhost; the phone and claude.ai use the public address.
 "$NODE" "$HERE/pocket.mjs" install --relay "http://localhost:$PORT" --token "$POCKET_TOKEN"
-write_agent "$WATCH_AGENT" "<key>HOME</key><string>$HOME</string>" "$NODE" "$HERE/pocket.mjs" watch
+write_agent "$WATCH_AGENT" "<key>HOME</key><string>$HOME</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>" "$NODE" "$HERE/pocket.mjs" watch
+
+# Over-the-air app updates: offer the newest Android build to the phone now, and let
+# GitHub Actions push future builds straight to this relay when the gh CLI is available.
+"$NODE" "$HERE/pocket.mjs" update-app || echo "(App updates will be fetched once the GitHub CLI is set up: brew install gh && gh auth login)"
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  gh secret set POCKET_RELAY_URL --repo Linusalbus/album3d --body "$PUBLIC_URL" >/dev/null && \
+  gh secret set POCKET_TOKEN --repo Linusalbus/album3d --body "$POCKET_TOKEN" >/dev/null && \
+  echo "GitHub will send new app builds straight to this Mac."
+fi
 
 # ---------------------------------------------------------------- pairing page
 # The QR opens the Android app directly (claudepocket:// is registered by the app).

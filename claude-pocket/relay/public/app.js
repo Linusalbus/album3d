@@ -133,6 +133,13 @@ async function api(method, path, body, raw) {
   return res.json();
 }
 
+// A newer Android build is waiting on the relay (only meaningful inside the app).
+function updateReady() {
+  if (!NATIVE || !data.app) return false;
+  try { return data.app.versionCode > Number(PocketNative.versionCode()); } catch { return false; }
+}
+function installUpdate() { PocketNative.installUpdate(); }
+
 const sessionName = (id) => data.sessions.find((s) => s.id === id)?.name || 'Session';
 
 // ---------------------------------------------------------------- routing
@@ -211,7 +218,7 @@ function render() {
   $('#awayWrap').hidden = r.page === 'messages' || r.page === 'm';
   $('#away').setAttribute('aria-checked', String(!!data.settings?.away));
   const unread = data.threads.reduce((n, t) => n + (t.unread || 0), 0);
-  $('#menuDot').hidden = !(data.requests.length || unread);
+  $('#menuDot').hidden = !(data.requests.length || unread || updateReady());
   renderDrawer(r, unread);
 
   const pages = { inbox: renderInbox, messages: renderThreads, m: renderThread, s: renderSession, usage: renderUsage, send: renderSend };
@@ -239,6 +246,7 @@ function renderDrawer(r, unread) {
     ${item('#/m/ideas', 'bulb', 'Ideas', 0, r.page === 'm' && r.id === 'ideas')}
     ${item('#/send', 'send', 'Send to Mac', 0, r.page === 'send')}
     ${item('#/usage', 'usage', 'Usage', 0, r.page === 'usage')}
+    ${updateReady() ? `<button class="nav-item" onclick="installUpdate()">${icon('up')}<span class="lbl">Update app</span><span class="count">${esc(data.app.versionName)}</span></button>` : ''}
     <div class="nav-scroll">
       ${live.length ? `<div class="nav-head">Sessions</div>${live.map(sess).join('')}` : ''}
       ${old.length ? `<div class="nav-head">Earlier</div>${old.map(sess).join('')}` : ''}
@@ -287,16 +295,22 @@ function autosize(el) {
 
 // ---- inbox
 
+function updateBanner() {
+  return updateReady() ? `<div class="panel"><div class="stat" style="align-items:center"><div><h3>Update ready</h3>
+    <div class="meta">Claude Pocket ${esc(data.app.versionName)} is on your Mac.</div></div>
+    <button class="btn" style="flex:0 0 auto" onclick="installUpdate()">Install</button></div></div>` : '';
+}
+
 function renderInbox() {
   setTitle('Inbox');
   if (!data.requests.length) {
     const away = data.settings?.away;
-    view.innerHTML = `<div class="hero"><h2>All caught up</h2><p>${away
+    view.innerHTML = updateBanner() + `<div class="hero"><h2>All caught up</h2><p>${away
       ? 'Away mode is on. Permission prompts, questions and finished turns show up here.'
       : 'Turn on Away mode to approve tools, answer questions and reply to Claude from your phone.'}</p></div>`;
     return;
   }
-  view.innerHTML = data.requests.map(requestCard).join('');
+  view.innerHTML = updateBanner() + data.requests.map(requestCard).join('');
   bindDrafts(view);
 }
 

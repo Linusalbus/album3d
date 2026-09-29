@@ -9,6 +9,7 @@
 //   node pocket.mjs inbox                                  download files sent from the phone
 //   node pocket.mjs watch                                  keep downloading files as they arrive
 //   node pocket.mjs message "text" [--thread T] [--url U]  text the phone (Messages tab)
+//   node pocket.mjs update-app                             fetch the newest Android build for OTA
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -347,10 +348,60 @@ async function pullInbox(verbose) {
 
 async function watch() {
   console.log(`Watching for files from the phone → ${INBOX}`);
+  let nextAppCheck = 0;
   for (;;) {
     try { await pullInbox(true); } catch (e) { console.warn(e.message); }
+    if (Date.now() > nextAppCheck) {
+      nextAppCheck = Date.now() + 10 * 60e3;
+      try { await updateApp(false); } catch (e) { console.warn('update-app:', e.message); }
+    }
     await new Promise((ok) => setTimeout(ok, 4000));
   }
+}
+
+// ---------------------------------------------------------------- Android OTA
+// GitHub Actions keeps the newest APK on the pocket-android-apk branch. The Mac
+// fetches it with the GitHub CLI or its own git login and hands it to the relay,
+// which offers it to the phone.
+
+const REPO = 'Linusalbus/album3d';
+const APK_BRANCH = 'pocket-android-apk';
+
+function run(cmd, args, opts = {}) {
+  return execFileSync(cmd, args, { stdio: ['ignore', 'pipe', 'ignore'], timeout: 120000, maxBuffer: 200 * 1024 * 1024, ...opts });
+}
+
+function fetchLatestApk() {
+  const buildOf = (msg) => Number(String(msg).match(/build (\d+)/)?.[1] || 0);
+  try { // GitHub CLI, if installed and signed in
+    const msg = run('gh', ['api', `repos/${REPO}/commits/${APK_BRANCH}`, '--jq', '.commit.message']).toString();
+    const apk = run('gh', ['api', '-H', 'Accept: application/vnd.github.raw', `repos/${REPO}/contents/ClaudePocket.apk?ref=${APK_BRANCH}`]);
+    return { build: buildOf(msg), apk };
+  } catch {}
+  // Plain git, using whatever GitHub login this Mac already has (Keychain).
+  const cache = path.join(CONF_DIR, 'apk.git');
+  if (!fs.existsSync(cache)) run('git', ['init', '-q', '--bare', cache]);
+  run('git', ['-C', cache, 'fetch', '-q', '--depth', '1', `https://github.com/${REPO}.git`, APK_BRANCH], { env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+  const msg = run('git', ['-C', cache, 'log', '-1', '--format=%s', 'FETCH_HEAD']).toString();
+  const apk = run('git', ['-C', cache, 'show', 'FETCH_HEAD:ClaudePocket.apk']);
+  return { build: buildOf(msg), apk };
+}
+
+async function updateApp(verbose = true) {
+  const current = (await api('GET', '/api/app')).app?.versionCode || 0;
+  let latest;
+  try { latest = fetchLatestApk(); } catch {
+    throw new Error('Could not reach GitHub. Install the GitHub CLI and run "gh auth login" (brew install gh).');
+  }
+  if (!latest.build || latest.build <= current) { if (verbose) console.log(`Phone app is up to date (build ${current}).`); return; }
+  const res = await fetch(`${conf.relay.replace(/\/$/, '')}/api/app/apk?versionCode=${latest.build}&versionName=1.0.${latest.build}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${conf.token}`, 'Content-Type': 'application/vnd.android.package-archive' },
+    body: latest.apk,
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!res.ok) throw new Error(`relay refused the APK (${res.status})`);
+  console.log(`Offered Claude Pocket build ${latest.build} to the phone.`);
 }
 
 // ---------------------------------------------------------------- message
@@ -450,9 +501,9 @@ async function uninstall() {
 // ---------------------------------------------------------------- main
 
 const cmdName = process.argv[2];
-const commands = { hook, statusline, install, uninstall, watch, message, inbox: () => pullInbox(true).then((n) => n || console.log('Nothing new.')) };
+const commands = { hook, statusline, install, uninstall, watch, message, 'update-app': () => updateApp(true), inbox: () => pullInbox(true).then((n) => n || console.log('Nothing new.')) };
 if (!commands[cmdName]) {
-  console.error('Commands: install | uninstall | inbox | watch | message | hook | statusline');
+  console.error('Commands: install | uninstall | inbox | watch | message | update-app | hook | statusline');
   process.exit(1);
 }
 if (!conf && !['install', 'hook', 'statusline'].includes(cmdName)) {
