@@ -5,6 +5,8 @@ Follow and steer Claude Code on your Mac from your Pixel — over the internet, 
 - **Inbox** — approve or deny tool permissions, answer Claude's multiple-choice questions, and reply when Claude finishes a turn (so it keeps working).
 - **Chats** — live view of every Claude Code session on the Mac, and send it messages.
 - **Usage** — 5-hour and weekly plan limits with reset times, plus context-window use.
+- **Messages** — an iMessage-style inbox Claude can text you in from anywhere (a routine tracking a parcel, a finished render, a build on the PC). One thread per topic, tracking links show as previews.
+- **Ideas** — a pinned thread where you jot down ideas; each is saved as a numbered idea Claude can list and pick up later.
 - **Send** — share a screenshot (or any file) from Android's share sheet straight to Claude, or just drop it in `~/Downloads/Claude Pocket` on the Mac.
 
 ```
@@ -48,6 +50,35 @@ node claude-pocket/mac/pocket.mjs watch
 1. Open `https://your-relay.up.railway.app/#token=YOUR_TOKEN` in Chrome (the token is saved and removed from the URL).
 2. Chrome menu → **Add to home screen** → **Install**. Installing is what makes *Claude Pocket* show up in the share sheet.
 3. For notifications while the app is closed, install the **ntfy** app and subscribe to the same topic as `NTFY_URL`.
+
+## Let Claude text you (Messages + Ideas)
+
+The relay is also an MCP server. Add it as a custom connector — in claude.ai (Settings → Connectors → Add custom connector) or in Claude Code (`claude mcp add --transport http pocket "https://your-relay.up.railway.app/mcp?token=YOUR_TOKEN"`) — with the URL:
+
+```
+https://your-relay.up.railway.app/mcp?token=YOUR_TOKEN
+```
+
+Claude then has these tools:
+
+| Tool | What it does |
+| --- | --- |
+| `send_message` | Text your phone in a named thread, optionally with a link preview (e.g. a tracking page) |
+| `read_replies` | Read what you answered from the phone |
+| `list_ideas` / `update_idea` / `save_idea` | Read your Ideas list, mark one as doing/done with a reply, or save one for you |
+| `list_threads` | Overview of all threads |
+
+Example routine prompt: *"Check the tracking for my Index01 order and, if the status changed, send_message to thread 'Index01 shipment' with the new status and the tracking link."*
+
+Without MCP, anything can post with the token:
+
+```sh
+curl -X POST https://your-relay.up.railway.app/api/messages \
+  -H "Authorization: Bearer YOUR_TOKEN" -H "Content-Type: application/json" \
+  -d '{"thread":"Index01 shipment","text":"Out for delivery","url":"https://…","urlTitle":"Track & Trace"}'
+
+node claude-pocket/mac/pocket.mjs message "Render finished" --thread "Mac"
+```
 
 ## How it behaves
 

@@ -1,6 +1,6 @@
 // Handles Android's share sheet (Web Share Target) and keeps the app shell
 // available offline. Shared files are parked in Cache Storage for app.js.
-const SHELL = 'pocket-shell-v1';
+const SHELL = 'pocket-shell-v2';
 const SHELL_FILES = ['/', '/app.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png'];
 
 self.addEventListener('install', (e) => {

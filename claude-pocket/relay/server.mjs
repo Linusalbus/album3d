@@ -24,7 +24,7 @@ if (TOKEN.length < 16) {
 fs.mkdirSync(path.join(DATA_DIR, 'files'), { recursive: true });
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 
-let state = { sessions: {}, requests: {}, usage: null, settings: { away: false }, files: {} };
+let state = { sessions: {}, requests: {}, usage: null, settings: { away: false }, files: {}, threads: {}, messages: [] };
 try { state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) }; } catch {}
 
 let saveTimer = null;
@@ -122,8 +122,210 @@ function snapshot() {
     usage: state.usage,
     settings: state.settings,
     files: Object.values(state.files).map(publicFile).sort((a, b) => b.createdAt - a.createdAt),
+    threads: threadList(),
     now: Date.now(),
   };
+}
+
+// ---------------------------------------------------------------- messages
+// A lightweight "Claude texts me" channel, separate from Claude Code sessions:
+// anything with the token (a routine, a script, the MCP connector) can post an
+// update into a named thread, and the phone can reply.
+
+const MAX_MESSAGES = 3000;
+
+function slug(name) {
+  return String(name || 'Claude').toLowerCase().normalize('NFKD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'claude';
+}
+
+const IDEAS = 'ideas';
+state.threads[IDEAS] ||= { id: IDEAS, name: 'Ideas', unread: 0, updatedAt: 0 };
+state.threads[IDEAS].pinned = true;
+
+function ideaList() {
+  return state.messages.filter((m) => m.thread === IDEAS && m.from === 'me').map((m, i) => ({ ...m, n: i + 1 }));
+}
+
+function threadList() {
+  return Object.values(state.threads).map((t) => {
+    const last = state.messages.findLast((m) => m.thread === t.id);
+    return { ...t, last: last ? { text: last.text || last.link?.title || last.link?.url || '', from: last.from, ts: last.ts } : null };
+  }).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updatedAt - a.updatedAt);
+}
+
+function addMessage({ thread, from, text, link, silent }) {
+  const name = String(thread || 'Claude').slice(0, 80);
+  const tid = slug(name);
+  const t = state.threads[tid] ||= { id: tid, name, unread: 0, updatedAt: 0 };
+  const msg = {
+    id: id(), thread: tid, from,
+    text: String(text || '').slice(0, 8000),
+    link: link?.url && /^https?:\/\//i.test(link.url) ? { url: String(link.url).slice(0, 2000), title: String(link.title || '').slice(0, 200) } : null,
+    ts: Date.now(),
+  };
+  if (!msg.text && !msg.link) throw Object.assign(new Error('text or link required'), { code: 400 });
+  state.messages.push(msg);
+  // Trim old updates, but never the user's ideas — their numbers must stay stable.
+  if (state.messages.length > MAX_MESSAGES) {
+    let drop = state.messages.length - MAX_MESSAGES;
+    state.messages = state.messages.filter((x) => x.thread === IDEAS || drop-- <= 0);
+  }
+  t.updatedAt = msg.ts;
+  if (from === 'claude' && !silent) {
+    t.unread += 1;
+    push(t.name, msg.text || msg.link.title || msg.link.url);
+  }
+  if (tid === IDEAS && from === 'me') {
+    msg.status = 'new';
+    const n = ideaList().length;
+    state.messages.push({ id: id(), thread: IDEAS, from: 'claude', text: `Saved as idea #${n} ✓`, ts: Date.now() + 1, ack: true });
+  }
+  changed('messages');
+  return msg;
+}
+
+function readMessages({ thread, since, from }) {
+  return state.messages.filter((m) =>
+    (!thread || m.thread === slug(thread)) && (!since || m.ts > Number(since)) && (!from || m.from === from));
+}
+
+// ---------------------------------------------------------------- MCP connector
+// Minimal Streamable-HTTP MCP server (stateless, JSON responses) so Claude can
+// text you from claude.ai, routines or Claude Code: add <relay>/mcp?token=… as a connector.
+
+const MCP_TOOLS = [
+  {
+    name: 'send_message',
+    description: 'Send a short update to the user\'s phone (shown like a text message in Claude Pocket, with a push notification). Use one thread per topic, e.g. "Index01 shipment", so related updates stay together. Include a link when there is something to open, such as a parcel tracking page.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        thread: { type: 'string', description: 'Conversation name, e.g. "Index01 shipment". Reuse the same name for follow-up updates.' },
+        text: { type: 'string', description: 'The message. Plain text, keep it short like an SMS.' },
+        link_url: { type: 'string', description: 'Optional URL shown as a tappable preview.' },
+        link_title: { type: 'string', description: 'Optional title for the link preview.' },
+      },
+      required: ['thread', 'text'],
+    },
+  },
+  {
+    name: 'read_replies',
+    description: 'Read what the user replied from their phone. Returns the user\'s messages, newest last.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        thread: { type: 'string', description: 'Only this thread (optional).' },
+        since: { type: 'number', description: 'Only replies after this Unix time in milliseconds (optional).' },
+      },
+    },
+  },
+  {
+    name: 'list_ideas',
+    description: 'List the ideas the user has jotted down in the Ideas thread on their phone, with number and status (new / doing / done). Check this when the user asks what to work on or refers to "my ideas".',
+    inputSchema: {
+      type: 'object',
+      properties: { status: { type: 'string', enum: ['new', 'doing', 'done', 'all'], description: 'Filter, default all.' } },
+    },
+  },
+  {
+    name: 'update_idea',
+    description: 'Change an idea\'s status and optionally reply to it in the Ideas thread (e.g. "Started — see branch x").',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        number: { type: 'number', description: 'Idea number from list_ideas.' },
+        status: { type: 'string', enum: ['new', 'doing', 'done'] },
+        reply: { type: 'string', description: 'Optional message shown to the user in the Ideas thread.' },
+      },
+      required: ['number'],
+    },
+  },
+  {
+    name: 'save_idea',
+    description: 'Save an idea to the user\'s Ideas list on their behalf (only when they ask you to note something down for later).',
+    inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+  },
+  {
+    name: 'list_threads',
+    description: 'List message threads with their latest message.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+];
+
+function mcpCall(name, args = {}) {
+  if (name === 'send_message') {
+    const m = addMessage({ thread: args.thread, from: 'claude', text: args.text, link: args.link_url ? { url: args.link_url, title: args.link_title } : null });
+    return `Sent to the user's phone in "${state.threads[m.thread].name}".`;
+  }
+  if (name === 'read_replies') {
+    const list = readMessages({ thread: args.thread, since: args.since, from: 'me' })
+      .filter((m) => args.thread || m.thread !== IDEAS).slice(-50);
+    if (!list.length) return 'No replies.';
+    return list.map((m) => `[${new Date(m.ts).toISOString()}] (${state.threads[m.thread]?.name}) ${m.text}`).join('\n');
+  }
+  if (name === 'list_ideas') {
+    const list = ideaList().filter((i) => !args.status || args.status === 'all' || i.status === args.status);
+    if (!list.length) return 'No ideas saved.';
+    return list.map((i) => `#${i.n} [${i.status || 'new'}] ${new Date(i.ts).toISOString().slice(0, 10)} — ${i.text}`).join('\n');
+  }
+  if (name === 'update_idea') {
+    const idea = ideaList().find((i) => i.n === Number(args.number));
+    if (!idea) throw new Error(`No idea #${args.number}`);
+    const stored = state.messages.find((m) => m.id === idea.id);
+    if (args.status) stored.status = args.status;
+    if (args.reply) addMessage({ thread: 'Ideas', from: 'claude', text: `Re #${idea.n}: ${args.reply}` });
+    else changed('messages');
+    return `Idea #${idea.n} is now ${stored.status}.`;
+  }
+  if (name === 'save_idea') {
+    addMessage({ thread: 'Ideas', from: 'me', text: args.text });
+    return `Saved as idea #${ideaList().length}.`;
+  }
+  if (name === 'list_threads') {
+    const list = threadList();
+    if (!list.length) return 'No threads yet.';
+    return list.map((t) => `${t.name} — last: ${t.last?.from === 'me' ? 'user' : 'Claude'}: ${t.last?.text?.slice(0, 120) || ''}`).join('\n');
+  }
+  throw Object.assign(new Error(`Unknown tool ${name}`), { rpc: -32602 });
+}
+
+async function handleMcp(req, res) {
+  if (req.method !== 'POST') return send(res, 405, { error: 'POST only' }, { Allow: 'POST' });
+  const body = await readJson(req);
+  const batch = Array.isArray(body) ? body : [body];
+  const replies = [];
+  for (const msg of batch) {
+    if (msg.id === undefined || msg.id === null) continue; // notification
+    const reply = { jsonrpc: '2.0', id: msg.id };
+    try {
+      if (msg.method === 'initialize') {
+        reply.result = {
+          protocolVersion: msg.params?.protocolVersion || '2025-06-18',
+          capabilities: { tools: {} },
+          serverInfo: { name: 'claude-pocket', version: '1.0.0' },
+          instructions: 'Use send_message to text the user updates on their phone (Claude Pocket). One thread per topic.',
+        };
+      } else if (msg.method === 'tools/list') {
+        reply.result = { tools: MCP_TOOLS };
+      } else if (msg.method === 'tools/call') {
+        try {
+          reply.result = { content: [{ type: 'text', text: mcpCall(msg.params?.name, msg.params?.arguments) }] };
+        } catch (e) {
+          if (e.rpc) throw e;
+          reply.result = { content: [{ type: 'text', text: e.message }], isError: true };
+        }
+      } else if (msg.method === 'ping') {
+        reply.result = {};
+      } else {
+        reply.error = { code: -32601, message: `Method not found: ${msg.method}` };
+      }
+    } catch (e) {
+      reply.error = { code: e.rpc || -32603, message: e.message };
+    }
+    replies.push(reply);
+  }
+  if (!replies.length) { res.writeHead(202); return res.end(); }
+  return send(res, 200, Array.isArray(body) ? replies : replies[0]);
 }
 
 function resolveRequest(reqId, patch) {
@@ -184,12 +386,17 @@ async function handle(req, res) {
   const p = url.pathname;
   const m = req.method;
 
+  if (p === '/mcp') {
+    if (!authed(req, url)) return send(res, 401, { error: 'Bad token' });
+    return handleMcp(req, res);
+  }
   if (!p.startsWith('/api/')) {
     if (m === 'GET') return serveStatic(res, p);
     return send(res, 405, 'Method not allowed');
   }
   if (p === '/api/health') return send(res, 200, { ok: true });
   if (!authed(req, url)) return send(res, 401, { error: 'Bad token' });
+  if (p === '/api/mcp' || p === '/mcp') return handleMcp(req, res);
 
   // ---- shared
   if (m === 'GET' && p === '/api/state') return send(res, 200, snapshot());
@@ -317,7 +524,41 @@ async function handle(req, res) {
     return send(res, 200, { ok: true });
   }
 
+  // ---- messages (anyone with the token: routines, scripts, the Mac CLI)
+  if (m === 'POST' && p === '/api/messages') {
+    const b = await readJson(req);
+    const msg = addMessage({
+      thread: b.thread || b.from, from: 'claude', text: b.text,
+      link: b.url || b.link_url ? { url: b.url || b.link_url, title: b.urlTitle || b.link_title } : b.link,
+    });
+    return send(res, 200, msg);
+  }
+  if (m === 'GET' && p === '/api/messages') {
+    return send(res, 200, { messages: readMessages({
+      thread: url.searchParams.get('thread'), since: url.searchParams.get('since'), from: url.searchParams.get('from'),
+    }).slice(-500) });
+  }
+
+  if (m === 'GET' && p === '/api/ideas') return send(res, 200, { ideas: ideaList() });
+
   // ---- phone side
+  let tm = p.match(/^\/api\/phone\/threads\/([\w-]+)\/(read|reply)$/);
+  if (tm && m === 'POST') {
+    const t = state.threads[tm[1]];
+    if (!t) return send(res, 404, { error: 'No such thread' });
+    if (tm[2] === 'read') { t.unread = 0; changed('messages'); return send(res, 200, { ok: true }); }
+    const b = await readJson(req);
+    return send(res, 200, addMessage({ thread: t.name, from: 'me', text: b.text }));
+  }
+  tm = p.match(/^\/api\/phone\/threads\/([\w-]+)$/);
+  if (tm && m === 'DELETE') {
+    if (tm[1] === IDEAS) return send(res, 400, { error: 'The Ideas thread cannot be deleted' });
+    delete state.threads[tm[1]];
+    state.messages = state.messages.filter((x) => x.thread !== tm[1]);
+    changed('messages');
+    return send(res, 200, { ok: true });
+  }
+
   rm = p.match(/^\/api\/phone\/answer\/([\w-]+)$/);
   if (rm && m === 'POST') {
     const body = await readJson(req);

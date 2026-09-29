@@ -1,12 +1,12 @@
 {
   "name": "Claude Pocket",
   "short_name": "Pocket",
-  "description": "Follow, approve and reply to Claude Code on your Mac from your phone.",
+  "description": "Follow and steer Claude Code on your Mac, and get messages from Claude, on your phone.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0d0f13",
-  "theme_color": "#0d0f13",
+  "background_color": "#212121",
+  "theme_color": "#212121",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

@@ -8,6 +8,7 @@
 //   node pocket.mjs statusline                             (called by Claude Code)
 //   node pocket.mjs inbox                                  download files sent from the phone
 //   node pocket.mjs watch                                  keep downloading files as they arrive
+//   node pocket.mjs message "text" [--thread T] [--url U]  text the phone (Messages tab)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -322,6 +323,17 @@ async function watch() {
   }
 }
 
+// ---------------------------------------------------------------- message
+
+async function message() {
+  const flags = new Set(['--thread', '--url', '--title']);
+  const words = process.argv.slice(3).filter((w, i, all) => !flags.has(w) && !flags.has(all[i - 1]));
+  const text = words.join(' ').trim();
+  if (!text) { console.error('Usage: node pocket.mjs message "text" [--thread "Index01 shipment"] [--url https://…] [--title …]'); process.exit(1); }
+  await api('POST', '/api/messages', { thread: arg('thread') || 'Claude', text, url: arg('url'), urlTitle: arg('title') });
+  console.log('Sent.');
+}
+
 // ---------------------------------------------------------------- install
 
 function arg(name) {
@@ -399,9 +411,9 @@ async function uninstall() {
 // ---------------------------------------------------------------- main
 
 const cmdName = process.argv[2];
-const commands = { hook, statusline, install, uninstall, watch, inbox: () => pullInbox(true).then((n) => n || console.log('Nothing new.')) };
+const commands = { hook, statusline, install, uninstall, watch, message, inbox: () => pullInbox(true).then((n) => n || console.log('Nothing new.')) };
 if (!commands[cmdName]) {
-  console.error('Commands: install | uninstall | inbox | watch | hook | statusline');
+  console.error('Commands: install | uninstall | inbox | watch | message | hook | statusline');
   process.exit(1);
 }
 if (!conf && !['install', 'hook', 'statusline'].includes(cmdName)) {
