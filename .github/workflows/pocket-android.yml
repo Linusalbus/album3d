@@ -53,3 +53,14 @@ jobs:
             Newest build of the Claude Pocket app (build ${{ github.run_number }}, commit ${{ github.sha }}).
             On your Pixel: download ClaudePocket.apk, open it, and allow installing from this source when asked.
           files: ClaudePocket.apk
+
+      # Also keep the APK as a plain file on its own branch, so it can be fetched with git.
+      - name: Publish to the pocket-android-apk branch
+        run: |
+          mkdir /tmp/apk && cp ClaudePocket.apk /tmp/apk/ && cd /tmp/apk
+          git init -q -b pocket-android-apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ClaudePocket.apk
+          git commit -q -m "Claude Pocket APK build ${{ github.run_number }} (${{ github.sha }})"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" pocket-android-apk
