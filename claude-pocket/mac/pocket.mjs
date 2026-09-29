@@ -12,12 +12,42 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFile, spawn } from 'node:child_process';
+import { execFile, execFileSync, spawn } from 'node:child_process';
 
 const HOME = os.homedir();
 const CONF_DIR = path.join(HOME, '.claude-pocket');
 const CONF_FILE = path.join(CONF_DIR, 'config.json');
 const SETTINGS_FILE = path.join(HOME, '.claude', 'settings.json');
+const MEMORY_FILE = path.join(HOME, '.claude', 'CLAUDE.md');
+const MEMORY_START = '<!-- claude-pocket:start -->';
+const MEMORY_END = '<!-- claude-pocket:end -->';
+const MEMORY_BLOCK = `${MEMORY_START}
+## Claude Pocket (my phone)
+
+The \`pocket\` MCP server is my phone app. It is always available — use it without being told:
+
+- **Text me** with \`send_message\` when I ask to be notified, reminded or kept updated, when a long task I asked about finishes, and for any delivery/shipment update (always include the tracking link as \`link_url\`). Keep it short, like an SMS. One thread per topic (e.g. "Index01 shipment"); reuse the same thread name for follow-ups.
+- **Ideas**: when I mention an idea "for later", save it with \`save_idea\`. When I ask what to work on or mention "my ideas", check \`list_ideas\`; mark progress with \`update_idea\`.
+- Check \`read_replies\` when I say I answered on my phone.
+${MEMORY_END}`;
+
+function writeMemory(add) {
+  let text = '';
+  try { text = fs.readFileSync(MEMORY_FILE, 'utf8'); } catch {}
+  const re = new RegExp(`\\n*${MEMORY_START}[\\s\\S]*?${MEMORY_END}\\n*`, 'g');
+  text = text.replace(re, '\n').trimEnd();
+  if (add) text = (text ? text + '\n\n' : '') + MEMORY_BLOCK;
+  fs.mkdirSync(path.dirname(MEMORY_FILE), { recursive: true });
+  fs.writeFileSync(MEMORY_FILE, text + '\n');
+}
+
+// Registers the relay as a user-scope MCP server so every Claude Code session has the tools.
+function registerMcp(url) {
+  const run = (args) => execFileSync('claude', args, { stdio: 'ignore', timeout: 20000 });
+  try { run(['mcp', 'remove', '--scope', 'user', 'pocket']); } catch {}
+  if (!url) return true;
+  try { run(['mcp', 'add', '--transport', 'http', '--scope', 'user', 'pocket', url]); return true; } catch { return false; }
+}
 const SELF = path.resolve(process.argv[1]);
 
 function loadConfig() {
@@ -386,10 +416,17 @@ async function install() {
     ...(prevStatus ? { previousStatusLine: prevStatus } : {}),
   }, null, 2) + '\n', { mode: 0o600 });
 
+  const mcpUrl = `${relay.replace(/\/$/, '')}/mcp?token=${encodeURIComponent(token)}`;
+  const mcpOk = registerMcp(mcpUrl);
+  writeMemory(true);
+
   console.log('Claude Pocket installed.');
   console.log(`  hooks + status line → ${SETTINGS_FILE} (backup: settings.json.pocket-backup)`);
   console.log(`  config             → ${CONF_FILE}`);
   console.log(`  files from phone   → ${INBOX}`);
+  console.log(`  messages/ideas MCP → ${mcpOk ? 'registered for all sessions (user scope)' : 'could not run the claude CLI — add it yourself:'}`);
+  if (!mcpOk) console.log(`    claude mcp add --transport http --scope user pocket "${mcpUrl}"`);
+  console.log(`  instructions       → ${MEMORY_FILE}`);
   console.log('Restart any running Claude Code sessions to pick up the hooks.');
 }
 
@@ -405,7 +442,9 @@ async function uninstall() {
     else delete settings.statusLine;
   }
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n');
-  console.log('Claude Pocket hooks removed.');
+  registerMcp(null);
+  writeMemory(false);
+  console.log('Claude Pocket hooks, MCP server and CLAUDE.md block removed.');
 }
 
 // ---------------------------------------------------------------- main

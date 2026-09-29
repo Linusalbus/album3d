@@ -303,7 +303,11 @@ async function handleMcp(req, res) {
           protocolVersion: msg.params?.protocolVersion || '2025-06-18',
           capabilities: { tools: {} },
           serverInfo: { name: 'claude-pocket', version: '1.0.0' },
-          instructions: 'Use send_message to text the user updates on their phone (Claude Pocket). One thread per topic.',
+          instructions: [
+            'This is the user\'s phone app (Claude Pocket). It is always available; use it without being asked to explain it.',
+            'Text the user with send_message when they ask to be notified, reminded or kept updated, when a long task they asked about finishes, and for delivery/shipment updates (always pass the tracking link as link_url). Keep messages short like an SMS, one thread per topic (e.g. "Index01 shipment"), and reuse the thread name for follow-ups.',
+            'When the user mentions an idea for later, save it with save_idea. When they ask what to work on or mention their ideas, check list_ideas and use update_idea to mark progress.',
+          ].join(' '),
         };
       } else if (msg.method === 'tools/list') {
         reply.result = { tools: MCP_TOOLS };
