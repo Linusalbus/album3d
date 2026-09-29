@@ -60,8 +60,7 @@ if [ -f "$ENV_FILE" ]; then
   echo "Reusing the existing token"
 else
   POCKET_TOKEN="$(openssl rand -hex 24)"
-  NTFY_TOPIC="claude-pocket-$(openssl rand -hex 8)"
-  printf 'POCKET_TOKEN=%s\nNTFY_TOPIC=%s\n' "$POCKET_TOKEN" "$NTFY_TOPIC" > "$ENV_FILE"
+  printf 'POCKET_TOKEN=%s\n' "$POCKET_TOKEN" > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   echo "Saved in $ENV_FILE"
 fi
@@ -105,8 +104,7 @@ write_agent "$RELAY_AGENT" "
     <key>POCKET_TOKEN</key><string>$POCKET_TOKEN</string>
     <key>PORT</key><string>$PORT</string>
     <key>DATA_DIR</key><string>$CONF_DIR/relay-data</string>
-    <key>PUBLIC_URL</key><string>$PUBLIC_URL</string>
-    <key>NTFY_URL</key><string>https://ntfy.sh/$NTFY_TOPIC</string>" \
+    <key>PUBLIC_URL</key><string>$PUBLIC_URL</string>" \
   "$NODE" "$RELAY_DIR/server.mjs"
 
 for _ in $(seq 1 20); do
@@ -123,7 +121,9 @@ bold "5/5  Connecting Claude Code"
 write_agent "$WATCH_AGENT" "<key>HOME</key><string>$HOME</string>" "$NODE" "$HERE/pocket.mjs" watch
 
 # ---------------------------------------------------------------- pairing page
-PAIR_URL="$PUBLIC_URL/#token=$POCKET_TOKEN"
+# The QR opens the Android app directly (claudepocket:// is registered by the app).
+PAIR_URL="claudepocket://pair?url=$("$NODE" -p 'encodeURIComponent(process.argv[1])' "$PUBLIC_URL")&token=$POCKET_TOKEN"
+APK_URL="https://github.com/Linusalbus/album3d/releases/download/pocket-android-latest/ClaudePocket.apk"
 MCP_URL="$PUBLIC_URL/mcp?token=$POCKET_TOKEN"
 PAIR_FILE="$CONF_DIR/pair.html"
 QR_SVG="$("$NODE" -e 'const q=require(process.argv[1])(0,"M");q.addData(process.argv[2]);q.make();process.stdout.write(q.createSvgTag({cellSize:6,margin:0,scalable:true}))' "$HERE/vendor/qrcode.cjs" "$PAIR_URL")"
@@ -144,11 +144,12 @@ cat > "$PAIR_FILE" <<HTML
 </style></head><body><main>
   <h1>Pair your phone</h1>
   <p>Keep this page private — the code contains your token.</p>
-  <div class="step"><h2>1. Scan with your Pixel</h2>
-    <p>Open the camera, scan, and open the link in Chrome. Then Chrome menu → <b>Add to home screen</b> → <b>Install</b>.</p>
+  <div class="step"><h2>1. Install the app on your Pixel</h2>
+    <p>On the phone, open this link (signed in to GitHub), download <b>ClaudePocket.apk</b> and open it. Allow installing from this source when Android asks.</p>
+    <code>$APK_URL</code></div>
+  <div class="step"><h2>2. Scan with the Pixel's Camera</h2>
+    <p>Tap the link that appears — Claude Pocket opens and pairs itself. Allow notifications when asked.</p>
     <div id="qr">$QR_SVG</div></div>
-  <div class="step"><h2>2. Notifications (optional)</h2>
-    <p>Install <b>ntfy</b> from the Play Store and subscribe to this topic:</p><code>$NTFY_TOPIC</code></div>
   <div class="step"><h2>3. Let Claude text you from claude.ai too (optional)</h2>
     <p>claude.ai → Settings → Connectors → <b>Add custom connector</b>, name it <b>Claude Pocket</b>, and paste:</p><code>$MCP_URL</code>
     <p style="margin-top:10px">Claude Code on this Mac is already connected.</p></div>
@@ -157,7 +158,8 @@ HTML
 chmod 600 "$PAIR_FILE"
 
 bold "Done ✓"
-echo "Phone app:      $PUBLIC_URL"
+echo "Relay address:  $PUBLIC_URL"
+echo "Android app:    $APK_URL"
 echo "Pairing page:   $PAIR_FILE (opening now)"
 echo "Restart any open Claude Code sessions to pick up the hooks."
 echo "Note: the app is reachable while this Mac is awake."

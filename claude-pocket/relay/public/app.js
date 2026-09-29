@@ -19,11 +19,15 @@ let sendTarget = '';
 const drafts = {};
 let renderQueued = false;
 
-// Pairing link: https://relay/#token=…
+const NATIVE = !!window.PocketNative; // running inside the Android app
+
+// Pairing link: https://relay/#token=…[&go=/m/ideas]  (the Android app always opens this way)
 if (location.hash.startsWith('#token=')) {
-  token = decodeURIComponent(location.hash.slice(7));
+  const params = new URLSearchParams(location.hash.slice(1));
+  token = params.get('token') || '';
   store.set('pocket-token', token);
-  history.replaceState(null, '', '/#/inbox');
+  const go = params.get('go');
+  history.replaceState(null, '', '/#' + (go && go.startsWith('/') ? go : '/' + (store.get('pocket-page') || 'inbox')));
 }
 
 // ---------------------------------------------------------------- icons
@@ -246,6 +250,7 @@ function renderDrawer(r, unread) {
 function signOut() {
   if (!confirm('Disconnect this phone from the relay?')) return;
   token = ''; store.set('pocket-token', ''); es?.close();
+  if (NATIVE) { PocketNative.resetPairing(); return; }
   document.body.classList.remove('drawer-open'); render();
 }
 
@@ -608,6 +613,26 @@ async function sendNow() {
 
 // ---------------------------------------------------------------- share target
 
+function applyShared(files, text) {
+  for (const file of files) pending.push({ file, url: file.type.startsWith('image/') ? URL.createObjectURL(file) : '' });
+  if (text) drafts['send-note'] = text;
+  sendMode = 'claude';
+  const stop = data.requests.find((r) => r.kind === 'stop');
+  if (stop) { drafts[`reply-${stop.id}`] = text; go('#/inbox'); } else go('#/send');
+}
+
+// The Android app hands over shared files through the PocketNative bridge.
+window.pocketReceiveShare = () => {
+  if (!NATIVE || !token) return;
+  let d; try { d = JSON.parse(PocketNative.takeShared()); } catch { return; }
+  const files = d.files.map((f) => {
+    const bin = atob(f.b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new File([bytes], f.name, { type: f.type });
+  });
+  if (files.length || d.text) applyShared(files, d.text);
+};
+
 // The service worker parks shared files in Cache Storage and opens /?share=1.
 async function takeShared() {
   if (!new URLSearchParams(location.search).has('share')) return;
@@ -656,7 +681,7 @@ $('#away').onclick = async () => {
   catch (e) { toast(e.message); }
 };
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+if (!NATIVE && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
 (async () => {
   if (!location.hash.startsWith('#/')) history.replaceState(null, '', '/#/' + (store.get('pocket-page') || 'inbox'));
@@ -664,6 +689,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
   if (!token) return;
   await refresh();
   await takeShared();
+  window.pocketReceiveShare();
   const r = route();
   if (r.page === 'm') await openThread(r.id); else render();
   connect();

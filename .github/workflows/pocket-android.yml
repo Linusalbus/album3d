@@ -1,0 +1,55 @@
+name: Claude Pocket Android
+
+on:
+  push:
+    paths:
+      - "claude-pocket/android/**"
+      - ".github/workflows/pocket-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pocket-android
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build APK
+        run: gradle -p claude-pocket/android assembleRelease --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp claude-pocket/android/app/build/outputs/apk/release/app-release.apk ClaudePocket.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClaudePocket
+          path: ClaudePocket.apk
+
+      # A fixed release link the phone can always download the newest build from.
+      - name: Publish to the pocket-android-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: pocket-android-latest
+          name: Claude Pocket for Android (latest)
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          body: |
+            Newest build of the Claude Pocket app (build ${{ github.run_number }}, commit ${{ github.sha }}).
+            On your Pixel: download ClaudePocket.apk, open it, and allow installing from this source when asked.
+          files: ClaudePocket.apk

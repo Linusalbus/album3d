@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone outline with a sparkle, sized for the adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="3.5" android:fillColor="#00000000"
+        android:pathData="M45,31 h18 a5,5 0 0 1 5,5 v36 a5,5 0 0 1 -5,5 h-18 a5,5 0 0 1 -5,-5 v-36 a5,5 0 0 1 5,-5 z" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M54,42 L56.3,49.7 L64,52 L56.3,54.3 L54,62 L51.7,54.3 L44,52 L51.7,49.7 Z" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M50.5,70 h7 a1.2,1.2 0 0 1 0,2.4 h-7 a1.2,1.2 0 0 1 0,-2.4 z" />
+</vector>

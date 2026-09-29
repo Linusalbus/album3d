@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Pocket</title>
+<style>
+  :root{--bg:#fff;--surface:#f4f4f4;--line:#e5e5e5;--text:#0d0d0d;--muted:#6b6b6b;--primary:#0d0d0d;--on-primary:#fff;--bad:#e5484d}
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#212121;--surface:#2f2f2f;--line:#383838;--text:#ececec;--muted:#a3a3a3;--primary:#ececec;--on-primary:#0d0d0d;--bad:#ff6b6b}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 ui-sans-serif,-apple-system,Roboto,sans-serif}
+  main{max-width:520px;margin:0 auto;padding:14vh 16px 32px}
+  .logo{width:56px;height:56px;border-radius:16px;background:#d97757;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+  .logo svg{width:34px;height:34px}
+  h1{font-size:26px;font-weight:600;letter-spacing:-.3px;text-align:center;margin:0 0 8px}
+  p.lead{color:var(--muted);text-align:center;margin:0 auto 28px;max-width:340px}
+  .steps{background:var(--surface);border-radius:20px;padding:6px 16px}
+  .step{display:flex;gap:14px;padding:14px 0}
+  .step + .step{border-top:1px solid var(--line)}
+  .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--primary);color:var(--on-primary);
+     font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .step b{display:block}
+  .step span{color:var(--muted);font-size:14px}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--bg);padding:1px 6px;border-radius:6px}
+  details{margin-top:22px}
+  summary{color:var(--muted);font-size:14px;text-align:center;list-style:none;cursor:pointer}
+  summary::-webkit-details-marker{display:none}
+  .row{display:flex;gap:8px;margin-top:12px}
+  input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:11px 16px;
+        font:inherit;color:inherit;outline:none}
+  input:focus{border-color:var(--muted)}
+  button{background:var(--primary);color:var(--on-primary);border:0;border-radius:999px;padding:11px 18px;font:inherit;font-weight:500}
+  .err{color:var(--bad);font-size:14px;text-align:center;min-height:21px;margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+  <div class="logo"><svg viewBox="0 0 108 108" fill="none"><path d="M45 31h18a5 5 0 0 1 5 5v36a5 5 0 0 1-5 5H45a5 5 0 0 1-5-5V36a5 5 0 0 1 5-5z" stroke="#fff" stroke-width="4"/><path d="M54 42l2.3 7.7L64 52l-7.7 2.3L54 62l-2.3-7.7L44 52l7.7-2.3z" fill="#fff"/></svg></div>
+  <h1>Connect to your Mac</h1>
+  <p class="lead">Pair once and Claude Pocket stays connected to Claude Code on your Mac.</p>
+
+  <div class="steps">
+    <div class="step"><div class="n">1</div><div><b>Run the setup on your Mac</b><span>In the claude-pocket folder: <code>bash mac/setup-mac.sh</code></span></div></div>
+    <div class="step"><div class="n">2</div><div><b>Scan the QR code</b><span>Open the Pixel's Camera and point it at the code on your Mac. Tap the link — it opens right here.</span></div></div>
+  </div>
+
+  <details>
+    <summary>Can't scan? Paste the pairing link</summary>
+    <div class="row">
+      <input id="link" placeholder="claudepocket://pair?… or https://…#token=…" autocomplete="off">
+      <button id="go">Pair</button>
+    </div>
+  </details>
+  <div class="err" id="err"></div>
+</main>
+<script>
+  document.getElementById('go').onclick = () => {
+    const v = document.getElementById('link').value.trim();
+    const ok = window.PocketNative && PocketNative.pair(v);
+    document.getElementById('err').textContent = ok ? '' : 'That is not a Claude Pocket pairing link.';
+  };
+</script>
+</body>
+</html>
