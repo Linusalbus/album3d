@@ -10,7 +10,7 @@ Follow and steer Claude Code on your Mac from your Pixel — over the internet, 
 - **Send** — share a screenshot (or any file) from Android's share sheet straight to Claude, or just drop it in `~/Downloads/Claude Pocket` on the Mac.
 
 ```
-Pixel (PWA) ⇄ HTTPS ⇄ relay (Railway) ⇄ HTTPS ⇄ Mac (Claude Code hooks + status line)
+Pixel (Android app) ⇄ HTTPS ⇄ relay (on your Mac, or any host) ⇄ Mac (Claude Code hooks + status line)
 ```
 
 Nothing listens on the Mac; both sides only make outgoing requests to the relay, so it works on any network.
@@ -23,7 +23,17 @@ Needs [Node.js](https://nodejs.org) 18+ and [Tailscale](https://tailscale.com/do
 bash mac/setup-mac.sh
 ```
 
-It runs the relay on the Mac (starts at login), publishes it on a fixed https address with Tailscale Funnel, connects Claude Code (hooks, status line, MCP server, `~/.claude/CLAUDE.md` block) and opens a pairing page with a QR code for the phone. Run it again any time; `bash mac/setup-mac.sh --uninstall` removes it. The app is reachable while the Mac is awake.
+It runs the relay on the Mac (starts at login), publishes it on a fixed https address with Tailscale Funnel, connects Claude Code (hooks, status line, MCP server, `~/.claude/CLAUDE.md` block) and opens a pairing page with the app download link and a QR code.
+
+### The Android app
+
+`android/` is a native Kotlin app with no third-party dependencies. GitHub Actions builds it on every push and publishes the newest APK at
+`https://github.com/Linusalbus/album3d/releases/download/pocket-android-latest/ClaudePocket.apk`.
+
+- Pair by scanning the QR code with the Pixel's Camera (`claudepocket://pair?…` opens the app).
+- Shows up in the share sheet — share a screenshot straight to Claude.
+- Keeps a live connection in the background (a quiet "Connected" notification you can hide under *Connection*), and notifies approvals and messages with **Allow / Deny / Done** buttons and inline **Reply**.
+- Builds are signed with `android/app/pocket-release.jks`, so new versions install over old ones. Run it again any time; `bash mac/setup-mac.sh --uninstall` removes it. The app is reachable while the Mac is awake.
 
 Prefer a cloud host that is always on? Follow steps 1–3 below instead.
 
@@ -59,9 +69,7 @@ node claude-pocket/mac/pocket.mjs watch
 
 ## 3. Install the app on the Pixel
 
-1. Open `https://your-relay.up.railway.app/#token=YOUR_TOKEN` in Chrome (the token is saved and removed from the URL).
-2. Chrome menu → **Add to home screen** → **Install**. Installing is what makes *Claude Pocket* show up in the share sheet.
-3. For notifications while the app is closed, install the **ntfy** app and subscribe to the same topic as `NTFY_URL`.
+Install the APK above, open it and paste `claudepocket://pair?url=<relay url>&token=<token>` (or scan it as a QR code). A browser also works: open `https://your-relay/#token=YOUR_TOKEN`.
 
 ## Let Claude text you (Messages + Ideas)
 
