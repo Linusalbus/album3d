@@ -1195,7 +1195,8 @@ def cmd_page(cfg, quiet=False):
                          f'class="btn">Website</a>')
         links.append(f'<a href="{maps}" target="_blank" rel="noopener" class="btn">Map</a>')
         cards.append(f"""
-<article class="card" data-id="{esc(l['id'])}" data-ig="{1 if l['instagram'] else 0}">
+<article class="card" data-id="{esc(l['id'])}" data-ig="{1 if l['instagram'] else 0}"
+  data-igurl="{ig}" data-email="{esc(l['email'])}">
   <img src="mockups/{esc(l['id'])}.jpg" alt="Mockup for {esc(l['name'])}" loading="lazy">
   <div class="body">
     <div class="head">
@@ -1272,6 +1273,11 @@ border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;text-decoration:n
 .ig-input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:6px 10px;
 font:inherit;font-size:13px;background:var(--bg);color:var(--text)}
 .btn.hide{margin-left:auto}
+#queue{position:fixed;inset:0;z-index:5;background:var(--bg);overflow:auto;padding:16px}
+.q-inner{max-width:1100px;margin:0 auto;display:grid;gap:16px;grid-template-columns:1.2fr 1fr}
+#q-img{width:100%;border-radius:14px;border:1px solid var(--line)}
+.q-side{display:flex;flex-direction:column;gap:8px}
+@media (max-width:800px){.q-inner{grid-template-columns:1fr}}
 .note{max-width:1200px;margin:8px auto 0;padding:0 0;color:var(--muted);font-size:13px}
 @media (max-width:420px){main{grid-template-columns:1fr}}
 </style></head><body>
@@ -1283,9 +1289,29 @@ font:inherit;font-size:13px;background:var(--bg);color:var(--text)}
     <option value="ig">Has Instagram</option><option value="sent">Sent</option>
     <option value="replied">Replied</option><option value="won">Won</option>
   </select>
+  <button class="btn primary" id="queue-start">Start queue</button>
   <button class="btn" id="export">Export CSV</button>
 </div></header>
 <main>{{CARDS}}</main>
+<div id="queue" hidden>
+  <div class="q-inner">
+    <img id="q-img" alt="">
+    <div class="q-side">
+      <p id="q-count" class="meta"></p>
+      <h2 id="q-name"></h2>
+      <p id="q-meta" class="meta"></p>
+      <textarea id="q-text" rows="14"></textarea>
+      <div class="actions">
+        <button id="q-go" class="btn primary">Copy + open (Enter)</button>
+        <button id="q-next" class="btn">Sent → next (N)</button>
+        <button id="q-skip" class="btn">Skip (S)</button>
+        <button id="q-close" class="btn">Close (Esc)</button>
+      </div>
+      <p class="meta">Enter copies the message and image and opens their Instagram
+      (or a mail to them). Paste with Cmd+V, send, then press N.</p>
+    </div>
+  </div>
+</div>
 <script>
 const KEY = "outreach-status";
 let store = {};
@@ -1395,6 +1421,82 @@ document.getElementById("export").onclick = () => {
   a.download = "outreach-status.csv";
   a.click();
 };
+// ---- queue: one business at a time, keyboard driven
+let queue = [], qi = 0, prepared = null;
+const $ = (id) => document.getElementById(id);
+
+async function clipboardParts(c, text) {
+  const png = await pngBlob(c.querySelector("img").getAttribute("src"));
+  const dataUrl = await new Promise(r => { const f = new FileReader();
+    f.onload = () => r(f.result); f.readAsDataURL(png); });
+  const htmlText = text.split("\\n").map(l => l ? l.replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;") : "<br>").join("<br>");
+  return {"text/plain": new Blob([text], {type: "text/plain"}),
+          "text/html": new Blob([`<div>${htmlText}</div><br><img src="${dataUrl}" width="600">`],
+                                {type: "text/html"}),
+          "image/png": png};
+}
+
+function qShow() {
+  if (qi >= queue.length) { $("q-name").textContent = "Done - no more businesses";
+    $("q-img").removeAttribute("src"); $("q-text").value = ""; $("q-meta").textContent = "";
+    $("q-count").textContent = `${queue.length} of ${queue.length}`; return; }
+  const c = queue[qi];
+  $("q-count").textContent = `${qi + 1} of ${queue.length}`;
+  $("q-img").src = c.querySelector("img").getAttribute("src");
+  $("q-name").textContent = c.querySelector("h2").textContent;
+  $("q-meta").textContent = c.querySelector(".meta").textContent.replace(/\s+/g, " ");
+  $("q-text").value = c.querySelector("textarea").value;
+  const target = c.dataset.ig === "1" ? "Instagram" : c.dataset.email ? "mail" : "Instagram search";
+  $("q-go").textContent = `Copy + open ${target} (Enter)`;
+  prepared = null;
+  clipboardParts(c, $("q-text").value).then(p => { prepared = p; }).catch(() => {});
+}
+
+async function qGo() {
+  const c = queue[qi];
+  if (!c) return;
+  const text = $("q-text").value;
+  try {
+    const parts = prepared || await clipboardParts(c, text);
+    parts["text/plain"] = new Blob([text], {type: "text/plain"});
+    await navigator.clipboard.write([new ClipboardItem(parts)]);
+  } catch (e) {
+    try { await navigator.clipboard.writeText(text); } catch (e2) {}
+  }
+  let url = c.dataset.igurl;
+  if (c.dataset.ig !== "1" && c.dataset.email) {
+    url = `mailto:${c.dataset.email}?subject=${encodeURIComponent("QR-skilte til " + $("q-name").textContent)}`
+        + `&body=${encodeURIComponent(text)}`;
+  }
+  window.open(url, "_blank");
+}
+
+function qMark(status) {
+  const c = queue[qi];
+  if (c && status) { store[c.dataset.id] = status; save(); refresh(); }
+  qi++; qShow();
+}
+
+$("queue-start").onclick = () => {
+  queue = cards.filter(c => c.isConnected && (store[c.dataset.id] || "new") === "new");
+  qi = 0; $("queue").hidden = false; qShow();
+};
+$("q-go").onclick = qGo;
+$("q-next").onclick = () => qMark("sent");
+$("q-skip").onclick = () => qMark(null);
+$("q-close").onclick = () => { $("queue").hidden = true; };
+document.addEventListener("keydown", (e) => {
+  if ($("queue").hidden || e.target === $("q-text")) {
+    if (e.key === "Escape" && !$("queue").hidden) $("queue").hidden = true;
+    return;
+  }
+  if (e.key === "Enter") { e.preventDefault(); qGo(); }
+  else if (e.key === "n" || e.key === "N") qMark("sent");
+  else if (e.key === "s" || e.key === "S") qMark(null);
+  else if (e.key === "Escape") $("queue").hidden = true;
+});
+
 refresh();
 </script></body></html>
 """

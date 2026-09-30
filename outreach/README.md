@@ -49,6 +49,19 @@ mockup; add `--force` to re-render all of them (e.g. after changing the design).
 The very first Blender render on a Mac compiles GPU kernels, which takes a
 few minutes once.
 
+## Queue mode (fastest)
+
+Click **Start queue** on the page. It shows one business at a time:
+
+- **Enter** copies the message and mockup and opens their Instagram (or a
+  mail to them if there's no Instagram but an e-mail)
+- paste with **Cmd+V** and send
+- **N** marks it sent and shows the next one, **S** skips, **Esc** closes
+
+About 10 seconds per business. Sending stays one message at a time on
+purpose: automated DMs get Instagram accounts banned, and automated
+marketing e-mails are illegal in Denmark (markedsføringsloven § 10).
+
 ## Workflow on the review page
 
 Open the page with `python outreach.py serve` (plain `open data/index.html`
