@@ -94,7 +94,7 @@ leave a review. When someone orders, ask them for their direct review link
 
 | Part | Size | Print |
 |---|---|---|
-| `card` | 100 × 140 × 4 mm | Flat, white PLA. ~45 g |
+| `card` | 100 × 140 × 3 mm | Flat, white PLA. ~35 g. Fast settings below |
 | `base` | 130 × 40 × 14 mm, 9 mm deep slot | Slot up, black PLA, 15 % infill, no supports. ~30 g |
 | `slot_test` | 70 × 22 × 14 mm | Slots with 0.2 / 0.3 / 0.4 mm clearance (numbers engraved) |
 
@@ -102,3 +102,7 @@ Print `slot_test` and one `card` first. The right slot takes the card with a
 light push and doesn't wobble. The base uses 0.3 mm; if another slot fits
 better, set `SLOT_CLEARANCE` in `models/make_models.py` and run
 `pip install cadquery && python models/make_models.py` to regenerate.
+
+Fast card settings (Bambu Studio / Orca): 0.24 mm layer height ("0.24mm
+Draft"), 2 walls, 3 top / 3 bottom layers, 10 % sparse infill (grid or
+lightning), and two cards side by side on the plate — the A1 fits both.
