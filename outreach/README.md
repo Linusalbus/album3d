@@ -63,6 +63,13 @@ works too, but then the browser only lets the page copy text, not images).
 
 Statuses are saved in the browser. **Export CSV** downloads them as a backup.
 
+With `serve` running, the page can also edit `data/leads.json`:
+
+- **@instagram field** (shown when no Instagram was found): paste the
+  handle, and the follower count is looked up right away; accounts over the
+  limit disappear from the page.
+- **Hide**: removes a business for good (e.g. a chain the filter missed).
+
 ## Skipping big businesses
 
 The target is small, independent places. `find` flags a place as a chain

@@ -343,7 +343,7 @@ def trim(img):
     return img.crop(ink) if ink else img
 
 
-def fetch_logo(s, lead):
+def fetch_logo(s, lead, want_logo=True):
     r = s.get(lead["website"], timeout=15)
     r.raise_for_status()
     scan = _PageScan()
@@ -353,6 +353,9 @@ def fetch_logo(s, lead):
         lead["instagram"] = instagram_handle(scan.instagram[0])
     if not lead["email"] and scan.emails:
         lead["email"] = scan.emails[0]
+    lead["site_scanned"] = True
+    if not want_logo:
+        return ""
 
     tried = set()
     for _, href in sorted(scan.candidates, key=lambda c: -c[0]):
@@ -388,6 +391,14 @@ def cmd_logos(cfg, limit=None, force=False):
         manual = os.path.join(LOGOS, f"{lead['id']}.png")
         if os.path.exists(manual) and not force:
             lead["logo"] = os.path.relpath(manual, DATA)
+            # Still look for the Instagram link, which the follower filter needs.
+            if lead["website"] and not lead.get("instagram") and not lead.get("site_scanned"):
+                try:
+                    fetch_logo(s, lead, want_logo=False)
+                    if lead.get("instagram"):
+                        print(f"  @ {lead['name']}: @{lead['instagram']}")
+                except requests.RequestException:
+                    pass
             continue
         if not lead["website"] or (limit and done >= limit):
             continue
@@ -1119,7 +1130,8 @@ def cmd_mockups(cfg, limit=None, force=False):
     os.makedirs(MOCKUPS, exist_ok=True)
     leads = load_leads()
     mark_chains(leads, cfg)
-    leads = [l for l in leads if not too_big(l, cfg) and not l.get("chain")]
+    leads = [l for l in leads
+             if not too_big(l, cfg) and not l.get("chain") and not l.get("hidden") and not l.get("hidden")]
     if not force:
         have = [l for l in leads if os.path.exists(os.path.join(MOCKUPS, f"{l['id']}.jpg"))]
         if have:
@@ -1166,7 +1178,7 @@ def cmd_page(cfg, quiet=False):
     all_leads = load_leads()
     mark_chains(all_leads, cfg)
     leads = [l for l in all_leads
-             if not too_big(l, cfg) and not l.get("chain")
+             if not too_big(l, cfg) and not l.get("chain") and not l.get("hidden")
              and os.path.exists(os.path.join(MOCKUPS, f"{l['id']}.jpg"))]
     cards = []
     for l in leads:
@@ -1198,12 +1210,14 @@ def cmd_page(cfg, quiet=False):
       {'· @' + esc(l['instagram']) if l['instagram'] else ''}
       {f"· {l['followers']} followers" if l.get('followers') is not None
        else ('· followers unknown' if l['instagram'] else '')}</p>
+    {'' if l['instagram'] else '<div class="ig-row"><input class="ig-input" placeholder="@instagram" aria-label="Instagram handle"><button class="btn ig-save">Save</button></div>'}
     <textarea rows="13">{esc(message_for(l, cfg))}</textarea>
     <div class="actions">
       <button class="btn primary copy">Copy message + image</button>
       <button class="btn copy-img">Copy image</button>
       <a class="btn" href="mockups/{esc(l['id'])}.jpg" download="{esc(l['name'])} mockup.jpg">Save image</a>
       {''.join(links)}
+      <button class="btn hide">Hide</button>
     </div>
   </div>
 </article>""")
@@ -1214,9 +1228,10 @@ def cmd_page(cfg, quiet=False):
     with open(path, "w", encoding="utf-8") as f:
         f.write(page)
     if not quiet:
-        hidden = sum(1 for l in all_leads if too_big(l, cfg) or l.get("chain"))
-        print(f"Review page with {len(leads)} businesses ({hidden} hidden as chains "
-              f"or over the follower limit) -> {os.path.relpath(path)}")
+        hidden = sum(1 for l in all_leads
+                     if too_big(l, cfg) or l.get("chain") or l.get("hidden"))
+        print(f"Review page with {len(leads)} businesses ({hidden} hidden: chains, "
+              f"over the follower limit or hidden by you) -> {os.path.relpath(path)}")
 
 
 PAGE_TEMPLATE = """<!doctype html>
@@ -1253,6 +1268,10 @@ border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;text-decoration:n
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
 .card[data-status=sent]{opacity:.6}.card[data-status=no]{opacity:.35}
 .card[data-status=won]{border-color:#34c759}
+.ig-row{display:flex;gap:6px}
+.ig-input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:6px 10px;
+font:inherit;font-size:13px;background:var(--bg);color:var(--text)}
+.btn.hide{margin-left:auto}
 .note{max-width:1200px;margin:8px auto 0;padding:0 0;color:var(--muted);font-size:13px}
 @media (max-width:420px){main{grid-template-columns:1fr}}
 </style></head><body>
@@ -1292,7 +1311,29 @@ for (const c of cards) {
   sel.value = store[c.dataset.id] || "new";
   sel.onchange = () => { store[c.dataset.id] = sel.value; save(); refresh(); };
   c.querySelector(".copy").onclick = (e) => copyCard(c, e.target, true);
+  c.querySelector(".hide").onclick = () => api("hide", {id: c.dataset.id}, c);
+  const igSave = c.querySelector(".ig-save");
+  if (igSave) igSave.onclick = () => api("instagram",
+    {id: c.dataset.id, handle: c.querySelector(".ig-input").value}, c, igSave);
   c.querySelector(".copy-img").onclick = (e) => copyCard(c, e.target, false);
+}
+
+// Saves to data/leads.json through `serve`. A card that ends up hidden
+// (by you, or because its Instagram is over the follower limit) is removed.
+async function api(action, body, card, btn) {
+  if (location.protocol === "file:") { alert("Run python outreach.py serve first"); return; }
+  if (btn) btn.textContent = "…";
+  try {
+    const r = await fetch("/api/" + action, {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const res = await r.json();
+    if (!r.ok) throw new Error(res.error || r.status);
+    if (res.hidden) { card.remove(); refresh(); return; }
+    if (btn) btn.textContent = res.followers == null ? "Saved (followers ?)"
+                                                      : `Saved · ${res.followers} followers`;
+  } catch (err) {
+    if (btn) btn.textContent = "Failed: " + err.message;
+  }
 }
 
 // Clipboard images must be PNG and need the page served over http
@@ -1359,6 +1400,35 @@ refresh();
 """
 
 
+def api_action(action, body):
+    """Edits from the review page: set a lead's Instagram (and look up its
+    followers right away) or hide it for good."""
+    cfg = load_config()
+    leads = load_leads()
+    lead = next((l for l in leads if l["id"] == body.get("id")), None)
+    if lead is None:
+        raise ValueError("unknown business")
+    if action == "hide":
+        lead["hidden"] = True
+    elif action == "instagram":
+        handle = instagram_handle(body.get("handle", ""))
+        if not handle:
+            raise ValueError("not an Instagram handle")
+        lead["instagram"] = handle
+        s = session()
+        try:
+            lead["followers"], pic = instagram_profile(s, handle)
+            if pic and not lead.get("logo"):
+                save_profile_picture(s, lead, pic)
+        except (PermissionError, requests.RequestException):
+            lead["followers"] = None
+    else:
+        raise ValueError("unknown action")
+    save_leads(leads)
+    return {"followers": lead.get("followers"),
+            "hidden": bool(lead.get("hidden") or too_big(lead, cfg))}
+
+
 def cmd_serve(port=8765):
     """Serves the review page on localhost (browsers only allow copying
     images from http). The page is rebuilt on every load, so a refresh
@@ -1374,6 +1444,20 @@ def cmd_serve(port=8765):
                 if self.path.startswith("/?") or self.path == "/":
                     self.path = "/index.html"
             super().do_GET()
+
+        def do_POST(self):
+            try:
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                result = api_action(self.path.rsplit("/", 1)[-1], body)
+                code = 200
+            except Exception as e:  # report to the page instead of dying
+                result, code = {"error": str(e)}, 400
+            data = json.dumps(result).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
 
         def end_headers(self):
             self.send_header("Cache-Control", "no-store")
