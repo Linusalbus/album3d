@@ -388,10 +388,14 @@ def shade(rgb, factor):
 
 
 def qr_target(lead):
-    if lead["website"]:
-        return lead["website"]
-    return ("https://www.google.com/maps/search/?api=1&query="
-            + quote_plus(f"{lead['name']} {lead['address']}"))
+    """Where the QR code points: the business on Google Maps, one tap from
+    writing a review. A `review_url` in leads.json (the direct link from
+    their Google Business Profile) wins when you have it."""
+    if lead.get("review_url"):
+        return lead["review_url"]
+    # Short URL = fewer QR modules = easier to print cleanly.
+    street = lead["address"].split(",")[0]
+    return "https://maps.google.com/?q=" + quote_plus(f"{lead['name']} {street}".strip())
 
 
 def render_face(lead, logo, cfg, accent, k=1.5):
@@ -433,7 +437,11 @@ def render_face(lead, logo, cfg, accent, k=1.5):
 
     headline, sub = cfg["sign_text"].get(lead["category"],
                                          cfg["sign_text"]["default"])
-    f1 = ImageFont.truetype(FONT_BOLD, u(62))
+    size = u(62)
+    f1 = ImageFont.truetype(FONT_BOLD, size)
+    while d.textlength(headline, font=f1) > W - u(120) and size > u(30):
+        size -= 2
+        f1 = ImageFont.truetype(FONT_BOLD, size)
     f2 = ImageFont.truetype(FONT_REG, u(36))
     d.text((W / 2, u(880)), headline, font=f1, fill=(29, 29, 31), anchor="mm")
     d.text((W / 2, u(950)), sub, font=f2, fill=(110, 110, 115), anchor="mm")

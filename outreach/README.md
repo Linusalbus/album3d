@@ -62,4 +62,9 @@ Everything is in `config.json`: your name, the message, radius, business
 types and the text on the sign for each type. Placeholders in `message`:
 `{name}` and `{my_name}`.
 
+The QR code points to the business on Google Maps, where customers can
+leave a review. When someone orders, ask them for their direct review link
+(Google Business Profile → "Ask for reviews"), add it to their entry in
+`data/leads.json` as `"review_url"`, and re-render.
+
 `data/` holds scraped business info and logos and is git-ignored.

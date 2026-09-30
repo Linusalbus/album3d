@@ -21,40 +21,40 @@
   "require_website": true,
   "sign_text": {
     "cafe": [
-      "Scan for menu",
-      "eller giv os en anmeldelse"
+      "Smagte det godt?",
+      "scan og giv os en anmeldelse"
     ],
     "restaurant": [
-      "Scan for menu",
-      "eller giv os en anmeldelse"
+      "Smagte det godt?",
+      "scan og giv os en anmeldelse"
     ],
     "bar": [
-      "Scan for menu",
-      "drinks & snacks"
+      "Hyggede du dig?",
+      "scan og giv os en anmeldelse"
     ],
     "ice_cream": [
-      "Scan for menu",
-      "alle vores smage"
-    ],
-    "bakery": [
-      "Kan du lide os?",
+      "Smagte det godt?",
       "scan og giv os en anmeldelse"
     ],
     "coffee": [
-      "Scan for menu",
-      "eller giv os en anmeldelse"
+      "Smagte det godt?",
+      "scan og giv os en anmeldelse"
+    ],
+    "bakery": [
+      "Smagte det godt?",
+      "scan og giv os en anmeldelse"
     ],
     "hairdresser": [
-      "Book næste tid",
-      "scan og vælg et tidspunkt"
+      "Glad for håret?",
+      "scan og giv os en anmeldelse"
     ],
     "beauty": [
-      "Book næste tid",
-      "scan og vælg et tidspunkt"
+      "Tilfreds med besøget?",
+      "scan og giv os en anmeldelse"
     ],
     "default": [
-      "Scan her",
-      "og besøg vores hjemmeside"
+      "Kan du lide os?",
+      "scan og giv os en anmeldelse"
     ]
   }
 }
