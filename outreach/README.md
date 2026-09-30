@@ -1,7 +1,8 @@
 # Outreach
 
 Finds cafés, restaurants, bakeries and salons near home, pulls each
-one's logo off its website, and renders a 3D-printed QR table-sign mockup with
+one's logo off its website, and renders a product shot of a 3D-printed QR sign (one standing in a base, one
+lying flat) with
 that logo on it. A review page then gives you one card per business: the
 mockup, a ready-made message, and buttons to copy it and open their Instagram.
 
@@ -57,9 +58,9 @@ Without it they are skipped and the tool falls back to a PNG icon.
 
 ## Customize
 
-Everything is in `config.json`: your name, radius, business types, price and
-quantity, the text on the sign for each type, and the message template.
-Placeholders: `{name}`, `{my_name}`, `{product}`, `{qty}`, `{price}` and
-`{qr_use}`.
+Everything is in `config.json`: your name, the message, the offer per
+business type (a café needs 10 signs for its tables, a salon one for the
+counter), radius, business types and the text on the sign for each type.
+Placeholders in `message`: `{name}`, `{my_name}` and `{offer}`.
 
 `data/` holds scraped business info and logos and is git-ignored.

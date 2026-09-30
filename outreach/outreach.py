@@ -467,60 +467,221 @@ def perspective(img, corners, size):
     return img.transform(size, Image.PERSPECTIVE, _solve(a, b), Image.BICUBIC)
 
 
+def remove_flat_background(img, tol=28):
+    """Logos often come as JPGs on a white or tinted box. If all four corners
+    share a colour, flood that colour away from the edges so only the mark
+    lands on the sign."""
+    if img.getchannel("A").getextrema()[0] < 250:
+        return img  # already has transparency
+    rgb = img.convert("RGB")
+    w, h = rgb.size
+    corners = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]
+    ref = rgb.getpixel(corners[0])
+    if any(max(abs(a - b) for a, b in zip(rgb.getpixel(c), ref)) > tol
+           for c in corners[1:]):
+        return img
+    marker = (1, 254, 3)
+    for c in corners:
+        ImageDraw.floodfill(rgb, c, marker, thresh=tol)
+    alpha = Image.eval(ImageChops.difference(
+        rgb, Image.new("RGB", rgb.size, marker)).convert("L"),
+        lambda v: 0 if v < 2 else 255)
+    out = img.copy()
+    out.putalpha(ImageChops.multiply(img.getchannel("A"), alpha))
+    return trim(out)
+
+
+# A tiny 3D scene: rounded plates extruded along their thickness, shaded with
+# one directional light, textured on the front, drawn back to front.
+
+def _v_sub(a, b): return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+def _v_dot(a, b): return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+def _v_cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0])
+def _v_norm(a):
+    n = math.sqrt(_v_dot(a, a)) or 1
+    return (a[0] / n, a[1] / n, a[2] / n)
+
+
+class Camera:
+    def __init__(self, eye, target, fov_deg, size):
+        self.eye = eye
+        self.w, self.h = size
+        self.f = _v_norm(_v_sub(target, eye))
+        self.r = _v_norm(_v_cross(self.f, (0, 1, 0)))
+        self.u = _v_cross(self.r, self.f)
+        self.focal = (self.h / 2) / math.tan(math.radians(fov_deg) / 2)
+
+    def project(self, p):
+        d = _v_sub(p, self.eye)
+        z = _v_dot(d, self.f)
+        return (self.w / 2 + _v_dot(d, self.r) / z * self.focal,
+                self.h / 2 - _v_dot(d, self.u) / z * self.focal, z)
+
+
+def rounded_outline(w, h, r, seg=10):
+    """Counter-clockwise rounded rectangle centred on the origin."""
+    pts = []
+    for cx, cy, a0 in ((w / 2 - r, -h / 2 + r, -90), (w / 2 - r, h / 2 - r, 0),
+                       (-w / 2 + r, h / 2 - r, 90), (-w / 2 + r, -h / 2 + r, 180)):
+        for i in range(seg + 1):
+            a = math.radians(a0 + 90 * i / seg)
+            pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return pts
+
+
+def standing(x, z, yaw_deg, height, lift=0.0):
+    """Local plate space (x across, y up, z out of the face) -> upright in the
+    world, bottom edge at `lift`, turned `yaw_deg` about the vertical."""
+    c, s_ = math.cos(math.radians(yaw_deg)), math.sin(math.radians(yaw_deg))
+    def place(p):
+        px, py, pz = p
+        return (x + c * px + s_ * pz, lift + py + height / 2, z - s_ * px + c * pz)
+    return place
+
+
+def lying(x, z, yaw_deg, thickness, lift=0.0):
+    """Local plate space -> flat on the table, face up, top edge pointing away."""
+    c, s_ = math.cos(math.radians(yaw_deg)), math.sin(math.radians(yaw_deg))
+    def place(p):
+        px, py, pz = p
+        wx, wz = px, -py
+        return (x + c * wx + s_ * wz, lift + pz + thickness / 2, z - s_ * wx + c * wz)
+    return place
+
+
+def plate_faces(w, h, t, r, place, color, texture=None):
+    """Faces of a rounded plate w x h x t mm; `place` maps local -> world."""
+    outline = rounded_outline(w, h, r)
+    front = [place((px, py, t / 2)) for px, py in outline]
+    back = [place((px, py, -t / 2)) for px, py in reversed(outline)]
+    rect = [place((-w / 2, h / 2, t / 2)), place((w / 2, h / 2, t / 2)),
+            place((w / 2, -h / 2, t / 2)), place((-w / 2, -h / 2, t / 2))]
+    faces = [{"pts": front, "color": color, "texture": texture, "rect": rect},
+             {"pts": back, "color": color}]
+    n = len(outline)
+    for i in range(n):
+        (ax, ay), (bx, by) = outline[i], outline[(i + 1) % n]
+        faces.append({"pts": [place((ax, ay, t / 2)), place((ax, ay, -t / 2)),
+                              place((bx, by, -t / 2)), place((bx, by, t / 2))],
+                      "color": color})
+    return faces
+
+
+def _normal(pts):
+    # Newell's method: robust for the many-sided rounded faces.
+    nx = ny = nz = 0.0
+    for i, a in enumerate(pts):
+        b = pts[(i + 1) % len(pts)]
+        nx += (a[1] - b[1]) * (a[2] + b[2])
+        ny += (a[2] - b[2]) * (a[0] + b[0])
+        nz += (a[0] - b[0]) * (a[1] + b[1])
+    return _v_norm((nx, ny, nz))
+
+
+LIGHT = _v_norm((-0.35, 0.85, 0.9))
+
+
+def draw_scene(canvas, cam, faces):
+    """Draws one object: back faces culled, the rest sorted far to near.
+    Call it per object, farthest object first."""
+    visible = []
+    for f in faces:
+        n = _normal(f["pts"])
+        centre = tuple(sum(p[i] for p in f["pts"]) / len(f["pts"]) for i in range(3))
+        if _v_dot(n, _v_sub(cam.eye, centre)) <= 0:
+            continue  # back face
+        f["n"] = n
+        f["depth"] = _v_dot(_v_sub(centre, cam.eye), cam.f)
+        visible.append(f)
+    visible.sort(key=lambda f: -f["depth"])
+
+    d = ImageDraw.Draw(canvas)
+    for f in visible:
+        light = 0.72 + 0.28 * max(0.0, _v_dot(f["n"], LIGHT))
+        pts2 = [cam.project(p)[:2] for p in f["pts"]]
+        if f.get("texture") is not None:
+            tex = f["texture"]
+            tint = Image.new("RGBA", tex.size, tuple(int(255 * light) for _ in range(3)) + (255,))
+            lit = ImageChops.multiply(tex, tint)
+            lit.putalpha(tex.getchannel("A"))
+            rect2 = [cam.project(p)[:2] for p in f["rect"]]
+            d.polygon(pts2, fill=shade(f["color"], light))
+            canvas.alpha_composite(perspective(lit, rect2, canvas.size))
+        else:
+            d.polygon(pts2, fill=shade(f["color"], light))
+
+
+def shadow_layer(size, cam, footprints, blur, strength):
+    """Soft shadow from ground-plane polygons (lists of world points, y=0)."""
+    mask = Image.new("L", size, 0)
+    md = ImageDraw.Draw(mask)
+    for poly in footprints:
+        md.polygon([cam.project(p)[:2] for p in poly], fill=strength)
+    return mask.filter(ImageFilter.GaussianBlur(blur))
+
+
+def cast(p):
+    """Where point p lands on the table along the light direction."""
+    k = p[1] / LIGHT[1]
+    return (p[0] - LIGHT[0] * k, 0.0, p[2] - LIGHT[2] * k)
+
+
 def render_mockup(lead, cfg):
     logo = Image.open(os.path.join(DATA, lead["logo"])).convert("RGBA")
+    logo = remove_flat_background(logo)
     accent = accent_color(logo)
     face = render_face(lead, logo, cfg, accent)
 
-    S = 2  # draw at 2x and downsample for smooth edges
+    S = 2  # supersample for clean edges
     W, H = 1600 * S, 1200 * S
     scene = Image.new("RGBA", (W, H))
-    top, bottom = (241, 239, 235), (221, 217, 211)
-    grad = ImageDraw.Draw(scene)
+    top, bottom = (244, 242, 238), (226, 222, 216)
+    g = ImageDraw.Draw(scene)
     for y in range(H):
         t = y / H
-        grad.line((0, y, W, y), fill=tuple(int(top[i] + (bottom[i] - top[i]) * t)
-                                           for i in range(3)))
+        g.line((0, y, W, y), fill=tuple(int(top[i] + (bottom[i] - top[i]) * t)
+                                         for i in range(3)))
 
-    # Sign quad: slight turn to the right so it reads as a 3D object.
-    fh = 780 * S
-    fw = int(fh * face.width / face.height)
-    cx, base_y = W // 2 - 20 * S, 1010 * S
-    tl = (cx - fw // 2, base_y - fh)
-    tr = (cx + fw // 2, base_y - fh + 34 * S)
-    br = (cx + fw // 2, base_y - 10 * S)
-    bl = (cx - fw // 2, base_y)
-    depth = 22 * S
-    base_color = accent if luminance(accent) < 0.6 else shade(accent, 0.75)
+    cam = Camera(eye=(120, 185, 500), target=(8, 52, 12), fov_deg=30, size=(W, H))
 
-    # Soft contact shadow.
-    shadow = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(shadow).ellipse((bl[0] - 80 * S, base_y - 10 * S,
-                                    br[0] + 140 * S, base_y + 90 * S), fill=120)
-    shadow = shadow.filter(ImageFilter.GaussianBlur(28 * S))
-    scene.paste(Image.new("RGBA", (W, H), (60, 55, 50, 255)), (0, 0), shadow)
+    # Plate: 100 x 137.5 mm (the face's 8:11 ratio), 4 mm thick, PLA white.
+    pw, ph, pt, pr = 100.0, 137.5, 4.0, 6.0
+    plate_col = (236, 233, 227)
+    base_col = accent if luminance(accent) < 0.6 else shade(accent, 0.8)
 
-    d = ImageDraw.Draw(scene)
-    # Base slab in the logo's colour.
-    slab_top = base_y - 26 * S
-    slab = [(bl[0] - 60 * S, slab_top + 20 * S), (br[0] + 90 * S, slab_top),
-            (br[0] + 90 * S, slab_top + 58 * S), (bl[0] - 60 * S, slab_top + 84 * S)]
-    d.polygon(slab, fill=base_color)
-    d.polygon([slab[0], slab[1], (slab[1][0], slab[1][1] + 10 * S),
-               (slab[0][0], slab[0][1] + 10 * S)], fill=shade(base_color, 1.25))
+    stand_x, stand_z, stand_yaw = -38.0, -25.0, 14.0
+    base_h = 14.0
+    base_place = lying(stand_x, stand_z, stand_yaw, base_h)
+    upright = standing(stand_x, stand_z, stand_yaw, ph, lift=base_h)
+    slot = lying(stand_x, stand_z, stand_yaw, 0.01, lift=base_h)
+    flat = lying(58.0, 58.0, -12.0, pt)
 
-    warped = perspective(face, [tl, tr, br, bl], (W, H))
-    # Edge thickness: a darker copy of the face peeking out behind it on the
-    # left, since the right side is the one turning away.
-    edge = Image.new("RGBA", (W, H), (208, 204, 197, 255))
-    edge.putalpha(warped.getchannel("A"))
-    for step in range(depth, 0, -2 * S):
-        scene.alpha_composite(edge, (-step, -step // 4))
-    scene.alpha_composite(warped)
+    # Shadows: tight contact shadow plus a long soft one along the light.
+    def ground(place, w, h):
+        return [(p[0], 0.0, p[2]) for p in
+                (place((x, y, 0)) for x, y in rounded_outline(w, h, 5))]
+    base_fp = ground(base_place, 130, 40)
+    flat_fp = ground(flat, pw, ph)
+    tops = [cast(upright((x, ph / 2, 0))) for x in (-pw / 2, pw / 2)]
+    bots = [(p[0], 0.0, p[2]) for p in
+            (upright((x, -ph / 2, 0)) for x in (pw / 2, -pw / 2))]
+    soft = shadow_layer((W, H), cam, [tops + bots, base_fp, flat_fp], 34 * S, 80)
+    contact = shadow_layer((W, H), cam, [base_fp, flat_fp], 5 * S, 130)
+    shadow = ImageChops.lighter(soft, contact)
+    scene.paste(Image.new("RGBA", (W, H), (70, 64, 58, 255)), (0, 0), shadow)
+
+    # Far to near: base, the slot the sign sits in, the sign, the flat tile.
+    draw_scene(scene, cam, plate_faces(130, 40, base_h, 5, base_place, base_col))
+    draw_scene(scene, cam, plate_faces(pw + 4, pt + 3, 0.01, 1.2, slot,
+                                       shade(base_col, 0.55))[:1])
+    draw_scene(scene, cam, plate_faces(pw, ph, pt, pr, upright, plate_col, face))
+    draw_scene(scene, cam, plate_faces(pw, ph, pt, pr, flat, plate_col, face))
 
     out = scene.resize((W // S, H // S), Image.LANCZOS).convert("RGB")
     path = os.path.join(MOCKUPS, f"{lead['id']}.jpg")
-    out.save(path, quality=90)
+    out.save(path, quality=92)
     return path
 
 
@@ -539,13 +700,9 @@ def cmd_mockups(cfg, limit=None):
 # ---------------------------------------------------------------- page
 
 def message_for(lead, cfg):
-    opener = cfg["message_openers"][int(re.sub(r"\D", "", lead["id"]) or 0)
-                                    % len(cfg["message_openers"])]
-    qr_use = cfg["qr_use"].get(lead["category"], cfg["qr_use"]["default"])
-    fields = {"name": lead["name"], "my_name": cfg["my_name"],
-              "product": cfg["product"]["name"], "qty": cfg["product"]["qty"],
-              "price": cfg["product"]["price_dkk"], "qr_use": qr_use}
-    return (opener + " " + cfg["message_body"]).format(**fields)
+    offer = cfg["offers"].get(lead["category"], cfg["offers"]["default"])
+    return cfg["message"].format(name=lead["name"], my_name=cfg["my_name"],
+                                 offer=offer)
 
 
 def cmd_page(cfg):
@@ -579,7 +736,7 @@ def cmd_page(cfg):
     </div>
     <p class="meta">{esc(l['category'])} · {l['distance_m'] / 1000:.1f} km
       {'· @' + esc(l['instagram']) if l['instagram'] else ''}</p>
-    <textarea rows="8">{esc(message_for(l, cfg))}</textarea>
+    <textarea rows="11">{esc(message_for(l, cfg))}</textarea>
     <div class="actions">
       <button class="btn copy">Copy message</button>
       <a class="btn" href="mockups/{esc(l['id'])}.jpg" download="{esc(l['name'])} mockup.jpg">Save image</a>

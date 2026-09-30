@@ -1,5 +1,17 @@
 {
   "my_name": "Linus",
+  "message": "Hej {name}!\n\nJeg hedder {my_name}, er 15 år og designer og 3D-printer ting her fra Amager. Jeg har lavet et udkast til et QR-skilt med jeres logo – se billedet. QR-koden kan føre til det I vil: menu, booking, MobilePay eller Google-anmeldelser.\n\n{offer} Skiltene printes i jeres farver, og jeg leverer gratis.\n\nSkal jeg lave det færdigt til jer?\n\nMvh. {my_name}",
+  "offers": {
+    "cafe": "10 stk. til bordene koster 500 kr.",
+    "restaurant": "10 stk. til bordene koster 500 kr.",
+    "bar": "10 stk. til bordene koster 500 kr.",
+    "ice_cream": "10 stk. til bordene koster 500 kr.",
+    "coffee": "10 stk. til bordene koster 500 kr.",
+    "bakery": "Ét skilt til disken koster 99 kr. – to koster 179 kr.",
+    "hairdresser": "Ét skilt til disken koster 99 kr. – to koster 179 kr.",
+    "beauty": "Ét skilt til disken koster 99 kr. – to koster 179 kr.",
+    "default": "Ét skilt til disken koster 99 kr. – to koster 179 kr."
+  },
   "origins": [
     {
       "label": "home",
@@ -18,11 +30,6 @@
     "shop=beauty"
   ],
   "require_website": true,
-  "product": {
-    "name": "QR-bordskilt",
-    "qty": 10,
-    "price_dkk": 500
-  },
   "sign_text": {
     "cafe": [
       "Scan for menu",
@@ -60,19 +67,5 @@
       "Scan her",
       "og besøg vores hjemmeside"
     ]
-  },
-  "message_openers": [
-    "Hej {name}!",
-    "Hej {name} 👋",
-    "Hej med jer hos {name}!"
-  ],
-  "message_body": "Jeg hedder {my_name} og laver 3D-printede {product} til steder her i området. Jeg har lavet et forslag med jeres logo (billede vedhæftet) – QR-koden kan pege på {qr_use}. {qty} stk. koster {price} kr. inkl. levering. Skal jeg sende en gratis prøve?",
-  "qr_use": {
-    "cafe": "jeres menu, MobilePay eller Google-anmeldelser",
-    "restaurant": "jeres menu, MobilePay eller Google-anmeldelser",
-    "bar": "jeres menu eller Instagram",
-    "hairdresser": "jeres online booking",
-    "beauty": "jeres online booking",
-    "default": "jeres hjemmeside, Instagram eller Google-anmeldelser"
   }
 }
