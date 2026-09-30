@@ -435,18 +435,15 @@ def render_face(lead, logo, cfg, accent, k=1.5):
     qr_img = qr_img.resize((u(440), u(440)), Image.NEAREST)
     face.alpha_composite(qr_img, ((W - u(440)) // 2, u(360)))
 
-    headline, sub = cfg["sign_text"].get(lead["category"],
-                                         cfg["sign_text"]["default"])
-    size = u(62)
+    # The slogan is left to the customer; one line of placeholder text shows
+    # where theirs goes.
+    text = cfg["sign_placeholder"]
+    size = u(58)
     f1 = ImageFont.truetype(FONT_BOLD, size)
-    while d.textlength(headline, font=f1) > W - u(120) and size > u(30):
+    while d.textlength(text, font=f1) > W - u(140) and size > u(28):
         size -= 2
         f1 = ImageFont.truetype(FONT_BOLD, size)
-    f2 = ImageFont.truetype(FONT_REG, u(36))
-    d.text((W / 2, u(866)), headline, font=f1, fill=(29, 29, 31), anchor="mm")
-    d.text((W / 2, u(936)), sub, font=f2, fill=(110, 110, 115), anchor="mm")
-    d.rounded_rectangle((W / 2 - u(60), u(990), W / 2 + u(60), u(998)), u(4),
-                        fill=accent)
+    d.text((W / 2, u(890)), text, font=f1, fill=(96, 96, 102), anchor="mm")
     return face
 
 
@@ -623,7 +620,7 @@ def draw_scene(canvas, cam, faces):
 
     d = ImageDraw.Draw(canvas)
     for f in visible:
-        light = 0.72 + 0.28 * max(0.0, _v_dot(f["n"], LIGHT))
+        light = 0.6 + 0.4 * max(0.0, _v_dot(f["n"], LIGHT))
         pts2 = [cam.project(p)[:2] for p in f["pts"]]
         if f.get("texture") is not None:
             tex = f["texture"]
@@ -709,7 +706,7 @@ def render_mockup(lead, cfg):
     S = 2  # supersample for clean edges
     W, H = 1600 * S, 1200 * S
     scene = Image.new("RGBA", (W, H))
-    top, bottom = (244, 242, 238), (226, 222, 216)
+    top, bottom = (200, 192, 181), (168, 159, 147)  # warm taupe: contrast for white and black parts
     g = ImageDraw.Draw(scene)
     for y in range(H):
         t = y / H
@@ -723,7 +720,7 @@ def render_mockup(lead, cfg):
     plate_col = (236, 233, 227)
     base_col = (40, 40, 44)  # the base is always printed in black PLA
 
-    stand_x, stand_z, stand_yaw = -38.0, -25.0, 14.0
+    stand_x, stand_z, stand_yaw = -34.0, -25.0, -24.0  # turned so its edge shows
     base_h = bh
     base_place = lying(stand_x, stand_z, stand_yaw, base_h)
     sink = 9.0  # how deep the card sits in the slot
@@ -743,7 +740,7 @@ def render_mockup(lead, cfg):
     soft = shadow_layer((W, H), cam, [tops + bots, base_fp, flat_fp], 34 * S, 80)
     contact = shadow_layer((W, H), cam, [base_fp, flat_fp], 5 * S, 130)
     shadow = ImageChops.lighter(soft, contact)
-    scene.paste(Image.new("RGBA", (W, H), (70, 64, 58, 255)), (0, 0), shadow)
+    scene.paste(Image.new("RGBA", (W, H), (46, 40, 34, 255)), (0, 0), shadow)
 
     # Far to near: base, the slot the sign sits in, the sign, the flat tile.
     draw_scene(scene, cam, plate_faces(bw, bd, bh, 5, base_place, base_col))
@@ -771,7 +768,7 @@ def render_mockup(lead, cfg):
     if caption:
         d = ImageDraw.Draw(scene)
         font = ImageFont.truetype(FONT_BOLD, 30 * S)
-        d.text((W - 56 * S, 56 * S), caption, font=font, fill=(60, 60, 66), anchor="ra")
+        d.text((W - 56 * S, 56 * S), caption, font=font, fill=(44, 42, 40), anchor="ra")
 
     out = scene.resize((W // S, H // S), Image.LANCZOS).convert("RGB")
     path = os.path.join(MOCKUPS, f"{lead['id']}.jpg")

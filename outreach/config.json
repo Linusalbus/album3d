@@ -1,6 +1,6 @@
 {
   "my_name": "Linus",
-  "message": "Hej {name}!\n\nMit navn er {my_name}, og jeg designer og 3D-printer skræddersyede skilte til butikker i området.\n\nSkiltene har en QR-kode, som kan føre til jeres hjemmeside eller jeres Google Maps-side, så jeres kunder hurtigt kan give jer en anmeldelse.\n\nDe fås i 2 varianter: et fladt (hæng det i vinduet eller læg det på bordet) og et med fod, så det kan stå op. Skiltet er det samme – foden er bare et tillæg. Skiltet måler 10 × 14 cm, og jeg laver dem også i andre størrelser. Jeg har vedhæftet billeder af begge modeller.\n\nPris:\n• 1 skilt: 50 kr.\n• 3 skilte: 120 kr.\n• Fod: +15 kr. pr. skilt\n\nVi kan også aftale en anden pris.\n\nMvh. {my_name}",
+  "message": "Hej {name}!\n\nMit navn er {my_name}, og jeg designer og 3D-printer skræddersyede skilte til butikker i området.\n\nSkiltene har en QR-kode, som kan føre til jeres hjemmeside eller jeres Google Maps-side, så jeres kunder hurtigt kan give jer en anmeldelse. Teksten under QR-koden vælger I selv.\n\nDe fås i 2 varianter: et fladt (hæng det i vinduet eller læg det på bordet) og et med fod, så det kan stå op. Skiltet er det samme – foden er bare et tillæg. Skiltet måler 10 × 14 cm, og jeg laver dem også i andre størrelser. Jeg har vedhæftet billeder af begge modeller.\n\nPris:\n• 1 skilt: 50 kr.\n• 3 skilte: 120 kr.\n• Fod: +15 kr. pr. skilt\n\nVi kan også aftale en anden pris.\n\nMvh. {my_name}",
   "image_caption": "Fås også i andre størrelser",
   "origins": [
     {
@@ -20,43 +20,6 @@
     "shop=beauty"
   ],
   "require_website": true,
-  "sign_text": {
-    "cafe": [
-      "Smagte det godt?",
-      "scan og giv os en anmeldelse"
-    ],
-    "restaurant": [
-      "Smagte det godt?",
-      "scan og giv os en anmeldelse"
-    ],
-    "bar": [
-      "Hyggede du dig?",
-      "scan og giv os en anmeldelse"
-    ],
-    "ice_cream": [
-      "Smagte det godt?",
-      "scan og giv os en anmeldelse"
-    ],
-    "coffee": [
-      "Smagte det godt?",
-      "scan og giv os en anmeldelse"
-    ],
-    "bakery": [
-      "Smagte det godt?",
-      "scan og giv os en anmeldelse"
-    ],
-    "hairdresser": [
-      "Glad for håret?",
-      "scan og giv os en anmeldelse"
-    ],
-    "beauty": [
-      "Tilfreds med besøget?",
-      "scan og giv os en anmeldelse"
-    ],
-    "default": [
-      "Kan du lide os?",
-      "scan og giv os en anmeldelse"
-    ]
-  },
-  "show_dimensions": false
+  "show_dimensions": false,
+  "sign_placeholder": "Jeres tekst her"
 }

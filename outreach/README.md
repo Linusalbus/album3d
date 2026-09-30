@@ -60,7 +60,8 @@ Without it they are skipped and the tool falls back to a PNG icon.
 
 Everything is in `config.json`: your name, the message, the caption in the
 top corner of the image (`image_caption`), `show_dimensions`, radius, business
-types and the text on the sign for each type. Placeholders in `message`:
+types and the placeholder shown where the customer's own text goes
+(`sign_placeholder`). Placeholders in `message`:
 `{name}` and `{my_name}`.
 
 The QR code points to the business on Google Maps, where customers can
