@@ -201,7 +201,7 @@ def mark_chains(leads, cfg):
     for l in leads:
         n, d = _norm(l["name"]), _domain(l["website"])
         l["chain"] = bool(
-            l["chain"]
+            l.get("chain")
             or names[n] > 1
             or (d and domains[d] > 1)
             or (l["website"] and LOCATION_PATH.search(urlparse(l["website"]).path))
@@ -978,11 +978,111 @@ def find_blender():
     return None
 
 
+SCENE = os.path.join(DATA, "scene")
+
+
+def _scene_key(cfg):
+    with open(os.path.join(HERE, "render_blender.py"), "rb") as f:
+        src = f.read()
+    return f"{hash_bytes(src)}-{cfg.get('render_samples', 256)}"
+
+
+def hash_bytes(b):
+    import hashlib
+    return hashlib.sha1(b).hexdigest()[:12]
+
+
+def ensure_scene(cfg, blender, force=False):
+    """Renders the white/black scene plates once; reused until the scene
+    script or sample count changes."""
+    key_path = os.path.join(SCENE, "key.txt")
+    key = _scene_key(cfg)
+    files = [os.path.join(SCENE, n) for n in ("white.npy", "black.npy", "corners.json")]
+    if (not force and all(map(os.path.exists, files)) and os.path.exists(key_path)
+            and open(key_path).read() == key):
+        return
+    os.makedirs(SCENE, exist_ok=True)
+    spec = os.path.join(SCENE, "spec.json")
+    with open(spec, "w") as f:
+        json.dump({"samples": cfg.get("render_samples", 256), "out_dir": SCENE}, f)
+    print("  Rendering the scene once in Blender (1-3 min; first time on a Mac "
+          "also compiles GPU kernels)…", flush=True)
+    with open(os.path.join(DATA, "blender.log"), "w", encoding="utf-8") as log:
+        proc = subprocess.Popen(blender + [spec], stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, bufsize=1)
+        for line in proc.stdout:
+            log.write(line)
+            if line.startswith("rendered "):
+                print(f"    {line.strip()} pass", flush=True)
+        proc.wait()
+    if proc.returncode != 0 or not all(map(os.path.exists, files)):
+        sys.exit("Blender failed - see data/blender.log")
+    with open(key_path, "w") as f:
+        f.write(key)
+
+
+def _to_linear(u8):
+    c = u8.astype("float32") / 255
+    import numpy as np
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+# AgX with the "Punchy" look - the same view transform the Blender renders
+# used, via the widely used polynomial fit of AgX (matrices are columns).
+_AGX_IN = [[0.842479062253094, 0.0423282422610123, 0.0423756549057051],
+           [0.0784335999999992, 0.878468636469772, 0.0784336],
+           [0.0792237451477643, 0.0791661274605434, 0.879142973793104]]
+_AGX_OUT = [[1.19687900512017, -0.0528968517574562, -0.0529716355144438],
+            [-0.0980208811401368, 1.15190312990417, -0.0980434501171241],
+            [-0.0990297440797205, -0.0989611768448433, 1.15107367264843]]
+
+
+def _to_display(lin, exposure):
+    """Scene-linear Rec.709 -> 8-bit display sRGB through AgX Punchy."""
+    import numpy as np
+    x = np.maximum(lin * (2 ** exposure), 1e-10) @ np.array(_AGX_IN, dtype="float32")
+    lo, hi = -12.47393, 4.026069
+    x = (np.clip(np.log2(np.maximum(x, 1e-10)), lo, hi) - lo) / (hi - lo)
+    x2 = x * x
+    x4 = x2 * x2
+    x = (15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x
+         + 0.4298 * x2 + 0.1191 * x - 0.00232)
+    luma = x @ np.array([0.2126, 0.7152, 0.0722], dtype="float32")
+    x = np.maximum(x, 0) ** 1.35                     # Punchy: power 1.35 ...
+    x = luma[..., None] + 1.4 * (x - luma[..., None])  # ... saturation 1.4
+    x = x @ np.array(_AGX_OUT, dtype="float32")
+    return (np.clip(x, 0, 1) * 255 + 0.5).astype("uint8")
+
+
+def composite_mockup(lead, cfg, plates, out_path):
+    import numpy as np
+    white, black, corners = plates
+    h, w = white.shape[:2]
+    face = make_face(lead, cfg)
+    plate_rgb = np.array((238, 236, 231), dtype="float32")
+    albedo = np.ones((h, w, 3), dtype="float32")
+    for quad in corners.values():
+        # Pre-shrink to about twice the on-screen size: avoids QR moire.
+        on_screen = max(math.dist(quad[0], quad[3]), math.dist(quad[1], quad[2]))
+        scale = min(1.0, 2 * on_screen / face.height)
+        small = face.resize((max(1, int(face.width * scale)),
+                             max(1, int(face.height * scale))), Image.LANCZOS)
+        warped = np.asarray(perspective(small, quad, (w, h)), dtype="float32")
+        alpha = warped[..., 3:4] / 255
+        rgb = warped[..., :3] * alpha + plate_rgb * (1 - alpha)
+        inside = perspective(Image.new("L", small.size, 255), quad, (w, h))
+        m = (np.asarray(inside, dtype="float32") / 255)[..., None]
+        albedo = albedo * (1 - m) + _to_linear(rgb) * m
+    lin = black + albedo * (white - black)
+    Image.fromarray(_to_display(lin, cfg.get("exposure", 0.0))).save(out_path, quality=92)
+    add_caption(out_path, cfg)
+
+
 def cmd_mockups(cfg, limit=None, force=False):
     os.makedirs(MOCKUPS, exist_ok=True)
-    faces_dir = os.path.join(DATA, "faces")
-    os.makedirs(faces_dir, exist_ok=True)
-    leads = [l for l in load_leads() if not too_big(l, cfg) and not l.get("chain")]
+    leads = load_leads()
+    mark_chains(leads, cfg)
+    leads = [l for l in leads if not too_big(l, cfg) and not l.get("chain")]
     if not force:
         have = [l for l in leads if os.path.exists(os.path.join(MOCKUPS, f"{l['id']}.jpg"))]
         if have:
@@ -1006,37 +1106,17 @@ def cmd_mockups(cfg, limit=None, force=False):
         print(f"Rendered {len(leads)} mockups -> {os.path.relpath(MOCKUPS)}")
         return
 
-    jobs = []
-    for lead in leads:
-        face = os.path.join(faces_dir, f"{lead['id']}.png")
-        make_face(lead, cfg).save(face)
-        jobs.append({"face": face, "out": os.path.join(MOCKUPS, f"{lead['id']}.jpg")})
-    spec = os.path.join(DATA, "render_jobs.json")
-    with open(spec, "w", encoding="utf-8") as f:
-        json.dump({"samples": cfg.get("render_samples", 128), "jobs": jobs}, f)
-    print(f"  Rendering {len(jobs)} mockups in Blender (log: data/blender.log)")
-    names = {j["out"]: lead["name"] for j, lead in zip(jobs, leads)}
-    done, hinted, start = [], False, time.time()
-    with open(os.path.join(DATA, "blender.log"), "w", encoding="utf-8") as log:
-        proc = subprocess.Popen(blender + [spec], stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True, bufsize=1)
-        for line in proc.stdout:
-            log.write(line)
-            if "ompil" in line and not hinted:
-                hinted = True
-                print("  Blender is compiling GPU kernels - one-time, takes a few minutes")
-            if line.startswith("rendered "):
-                out = line[len("rendered "):].strip()
-                add_caption(out, cfg)
-                done.append(out)
-                per = (time.time() - start) / len(done)
-                left = per * (len(jobs) - len(done))
-                print(f"  [{len(done)}/{len(jobs)}] {names.get(out, out)}"
-                      f"  (~{left / 60:.0f} min left)", flush=True)
-        proc.wait()
-    if proc.returncode != 0 and len(done) < len(jobs):
-        sys.exit("Blender failed - see data/blender.log")
-    print(f"Rendered {len(done)} mockups -> {os.path.relpath(MOCKUPS)}")
+    import numpy as np
+    ensure_scene(cfg, blender, force=False)
+    plates = (np.load(os.path.join(SCENE, "white.npy")).astype("float32"),
+              np.load(os.path.join(SCENE, "black.npy")).astype("float32"),
+              json.load(open(os.path.join(SCENE, "corners.json"))))
+    start = time.time()
+    for i, lead in enumerate(leads, 1):
+        composite_mockup(lead, cfg, plates, os.path.join(MOCKUPS, f"{lead['id']}.jpg"))
+        if i % 10 == 0 or i == len(leads):
+            print(f"  [{i}/{len(leads)}] {time.time() - start:.0f}s", flush=True)
+    print(f"Rendered {len(leads)} mockups -> {os.path.relpath(MOCKUPS)}")
 
 
 # ---------------------------------------------------------------- page
@@ -1046,7 +1126,9 @@ def message_for(lead, cfg):
 
 
 def cmd_page(cfg):
-    leads = [l for l in load_leads()
+    all_leads = load_leads()
+    mark_chains(all_leads, cfg)
+    leads = [l for l in all_leads
              if not too_big(l, cfg) and not l.get("chain")
              and os.path.exists(os.path.join(MOCKUPS, f"{l['id']}.jpg"))]
     cards = []

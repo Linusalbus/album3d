@@ -1,18 +1,28 @@
 """Photoreal product shot of the QR sign, rendered with Blender Cycles.
 
-One card stands in a black base, a second lies flat in front of it. The card
-face comes from a PNG made by outreach.py, so this script only builds the
-scene and renders it — once per job, reusing the scene between jobs.
+One card stands in a black base, a second lies flat in front of it. Instead
+of rendering every business, this renders the scene ONCE with the card face
+pure white and once pure black (same noise seed), and records where each
+card face lands in the image. Because light on the face is linear in its
+colour, any face can then be composited in afterwards:
+
+    pixel = black + face_colour * (white - black)      (in linear light)
+
+which is exact for the face, keeps occlusion by the base, and takes a
+fraction of a second per business (outreach.py does that part).
 
 Run either way (outreach.py picks whichever is available):
-    python render_blender.py jobs.json                      # with `pip install bpy`
-    blender -b --factory-startup -P render_blender.py -- jobs.json
+    python render_blender.py spec.json                      # with `pip install bpy`
+    blender -b --factory-startup -P render_blender.py -- spec.json
 
-jobs.json: {"samples": 128, "jobs": [{"face": "a.png", "out": "a.jpg"}, ...]}
+spec.json: {"samples": 256, "out_dir": "data/scene"}
+Writes white.npy, black.npy (linear RGB, float16, top row first) and
+corners.json (pixel corners TL, TR, BR, BL of each card face).
 """
 
 import json
 import math
+import os
 import sys
 
 import bpy  # must come first: the pip `bpy` module provides bmesh
@@ -82,6 +92,8 @@ def pla_material(name, color, roughness=0.42, face_image=None, card=None):
     out = nodes.new("ShaderNodeOutputMaterial")
     bsdf = nodes.new("ShaderNodeBsdfPrincipled")
     bsdf.inputs["Roughness"].default_value = roughness
+    # Printed PLA is fairly matte; a strong sheen would grey out dark print.
+    bsdf.inputs["Specular IOR Level"].default_value = 0.25
     bsdf.inputs["Base Color"].default_value = (*color, 1)
     links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
 
@@ -195,7 +207,7 @@ def build_scene(samples):
     face_img = bpy.data.images.new("face", 8, 8, alpha=True)
     white = srgb((238, 236, 231))
     black = srgb((28, 28, 30))
-    card_mat = pla_material("card", white, 0.4, face_img, (CARD_W, CARD_H))
+    card_mat = pla_material("card", white, 0.62, face_img, (CARD_W, CARD_H))
     base_mat = pla_material("base", black, 0.5)
 
     # Standing assembly: base with a slot, card sunk into it.
@@ -254,7 +266,8 @@ def build_scene(samples):
     cam_data = bpy.data.cameras.new("camera")
     cam_data.lens = 58
     cam_data.dof.use_dof = True
-    cam_data.dof.aperture_fstop = 9
+    # Mild depth of field: composited faces are sharp, so keep blur small.
+    cam_data.dof.aperture_fstop = 16
     cam = bpy.data.objects.new("camera", cam_data)
     bpy.context.collection.objects.link(cam)
     cam.location = (0.23, -0.56, 0.27)
@@ -300,18 +313,64 @@ def _use_gpu(scene):
             return
 
 
+def face_corners(obj):
+    """Pixel positions of the card's front rectangle (TL, TR, BR, BL as the
+    face image is oriented: local +Y is the top)."""
+    from bpy_extras.object_utils import world_to_camera_view
+    scene = bpy.context.scene
+    w, h = scene.render.resolution_x, scene.render.resolution_y
+    bpy.context.view_layer.update()
+    out = []
+    for x, y in ((-CARD_W / 2, CARD_H / 2), (CARD_W / 2, CARD_H / 2),
+                 (CARD_W / 2, -CARD_H / 2), (-CARD_W / 2, -CARD_H / 2)):
+        co = world_to_camera_view(scene, scene.camera,
+                                  obj.matrix_world @ Vector((x, y, CARD_T / 2)))
+        out.append((co.x * w, (1 - co.y) * h))
+    return out
+
+
+def render_linear(path):
+    """Renders and returns the image as linear float RGB, top row first."""
+    import numpy as np
+    scene = bpy.context.scene
+    scene.render.image_settings.file_format = "OPEN_EXR"
+    scene.render.image_settings.color_depth = "32"
+    scene.render.filepath = path
+    bpy.ops.render.render(write_still=True)
+    img = bpy.data.images.load(path)
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(px)
+    bpy.data.images.remove(img)
+    os.remove(path)
+    return px.reshape(h, w, 4)[::-1, :, :3]
+
+
 def main(argv):
+    import numpy as np
     spec = json.load(open(argv[0], encoding="utf-8"))
-    face_img = build_scene(spec.get("samples", 128))
-    for job in spec["jobs"]:
-        img = bpy.data.images.load(job["face"], check_existing=False)
-        img.colorspace_settings.name = "sRGB"
-        mat = bpy.data.materials["card"]
-        mat.node_tree.nodes["face"].image = img
-        bpy.context.scene.render.filepath = job["out"]
-        bpy.ops.render.render(write_still=True)
-        bpy.data.images.remove(img)
-        print(f"rendered {job['out']}", flush=True)
+    out_dir = spec["out_dir"]
+    os.makedirs(out_dir, exist_ok=True)
+    face_img = build_scene(spec.get("samples", 256))
+    scene = bpy.context.scene
+    scene.cycles.seed = 7                 # identical noise in both passes
+    scene.view_settings.view_transform = "Standard"   # EXR stays linear anyway
+    mat = bpy.data.materials["card"]
+    for name, value in (("white", 1.0), ("black", 0.0)):
+        # Big and sampled "Closest": a tiny image with cubic filtering and
+        # CLIP extension fades out toward the card edges.
+        solid = bpy.data.images.new(name, 64, 64, alpha=True)
+        solid.pixels.foreach_set([value, value, value, 1.0] * 64 * 64)
+        node = mat.node_tree.nodes["face"]
+        node.image = solid
+        node.interpolation = "Closest"
+        rgb = render_linear(os.path.join(out_dir, f"{name}.exr"))
+        np.save(os.path.join(out_dir, f"{name}.npy"), rgb.astype(np.float16))
+        print(f"rendered {name}", flush=True)
+    corners = {"standing": face_corners(bpy.data.objects["card_standing"]),
+               "flat": face_corners(bpy.data.objects["card_flat"])}
+    with open(os.path.join(out_dir, "corners.json"), "w") as f:
+        json.dump(corners, f)
     del face_img
 
 

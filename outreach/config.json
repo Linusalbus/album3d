@@ -25,7 +25,7 @@
   "max_instagram_followers": 1000,
   "skip_chains": true,
   "renderer": "auto",
-  "render_samples": 64,
+  "render_samples": 256,
   "chain_names": [
     "Lagkagehuset",
     "Ole & Steen",

@@ -21,8 +21,9 @@ pip install -r requirements.txt
 
 For photoreal mockups, install **Blender** (free) from
 [blender.org](https://www.blender.org/download/) and drag it into Applications.
-The tool finds it automatically and renders with Cycles on the M4's GPU
-(a few seconds per business). Without Blender it falls back to a simple
+The tool finds it automatically. Blender renders the scene once (1-3 min,
+cached in `data/scene/` until the scene changes), then each business's sign
+is composited into it with correct lighting in about a second. Without Blender it falls back to a simple
 flat renderer.
 
 ## Run
@@ -39,7 +40,7 @@ Or one step at a time:
 | `python outreach.py find` | Looks up businesses within `radius_m` of the addresses in `config.json` (OpenStreetMap) |
 | `python outreach.py logos` | Visits each website and saves the logo, plus any Instagram handle and e-mail it links to |
 | `python outreach.py followers` | Looks up Instagram follower counts and skips accounts over `max_instagram_followers` |
-| `python outreach.py mockups` | Renders `data/mockups/<id>.jpg` in Blender for every business with a logo |
+| `python outreach.py mockups` | Renders `data/mockups/<id>.jpg` for every business (scene once in Blender, then ~1 s each) |
 | `python outreach.py page` | Builds `data/index.html` |
 
 `--limit 20` processes only the first 20 businesses (closest first), which is
