@@ -421,12 +421,21 @@ def parse_count(text):
     return int(re.sub(r"[.,]", "", num))
 
 
+BROWSER_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                   "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"),
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
 def instagram_profile(s, handle):
-    """Best effort, no login: (follower count, profile picture URL). Either
-    is None when Instagram won't say."""
+    """Best effort, no login: (follower count, profile picture URL). Tries
+    Instagram's web API, then the public profile page. Raises
+    PermissionError only when both refuse (rate limited / login wall)."""
+    refused = False
     r = s.get("https://i.instagram.com/api/v1/users/web_profile_info/",
               params={"username": handle},
-              headers={"x-ig-app-id": IG_APP_ID}, timeout=15)
+              headers={**BROWSER_HEADERS, "x-ig-app-id": IG_APP_ID}, timeout=15)
     if r.status_code == 200:
         try:
             user = r.json()["data"]["user"]
@@ -434,14 +443,24 @@ def instagram_profile(s, handle):
                     user.get("profile_pic_url_hd") or user.get("profile_pic_url"))
         except (ValueError, KeyError, TypeError):
             pass
-    if r.status_code in (401, 403, 429):
+    refused = r.status_code in (401, 403, 429)
+
+    r = s.get(f"https://www.instagram.com/{handle}/", headers=BROWSER_HEADERS,
+              timeout=15)
+    text = r.text
+    count = None
+    m = re.search(r'"edge_followed_by":\{"count":(\d+)\}', text)
+    if m:
+        count = int(m.group(1))
+    else:
+        m = re.search(r'content="([\d.,]+\s*[kKmM]?)\s+(?:Followers|følgere|Følgere)',
+                      text)
+        count = parse_count(m.group(1)) if m else None
+    pic = re.search(r'<meta property="og:image" content="([^"]+)"', text)
+    if count is None and (refused or r.status_code in (401, 403, 429)
+                          or "/accounts/login" in r.url):
         raise PermissionError(r.status_code)
-    r = s.get(f"https://www.instagram.com/{handle}/", timeout=15)
-    m = re.search(r'<meta[^>]+content="([\d.,]+\s*[kKmM]?)\s+(?:Followers|følgere)',
-                  r.text)
-    pic = re.search(r'<meta property="og:image" content="([^"]+)"', r.text)
-    return (parse_count(m.group(1)) if m else None,
-            html.unescape(pic.group(1)) if pic else None)
+    return count, html.unescape(pic.group(1)) if pic else None
 
 
 def save_profile_picture(s, lead, url):
@@ -463,27 +482,42 @@ def save_profile_picture(s, lead, url):
 
 def too_big(lead, cfg):
     limit = cfg.get("max_instagram_followers")
-    return bool(limit and (lead.get("followers") or 0) > limit)
+    if not limit:
+        return False
+    if lead.get("followers") is None:
+        # Unknown: only skip when asked to, and only if there is an Instagram.
+        return bool(cfg.get("skip_unknown_followers") and lead.get("instagram"))
+    return lead["followers"] > limit
 
 
 def cmd_followers(cfg, force=False):
     """Looks up follower counts for leads with an Instagram handle, so big
-    accounts (already busy, not the target) can be skipped."""
+    accounts (already busy, not the target) can be skipped. Counts that came
+    back unknown are retried on every run."""
     os.makedirs(LOGOS, exist_ok=True)
     leads = load_leads()
     s = session()
-    checked = 0
+    checked = refusals = 0
     for lead in leads:
-        if not lead.get("instagram") or ("followers" in lead and not force):
+        if not lead.get("instagram"):
+            continue
+        if lead.get("followers") is not None and not force:
             continue
         try:
             lead["followers"], pic = instagram_profile(s, lead["instagram"])
             if pic and not lead.get("logo"):
                 save_profile_picture(s, lead, pic)
+            refusals = 0
         except PermissionError as e:
-            print(f"  Instagram stopped answering ({e}); try again later. "
-                  "Unchecked businesses are kept.")
-            break
+            refusals += 1
+            print(f"  @{lead['instagram']}: Instagram refused ({e})")
+            if refusals >= 3:
+                print("  Instagram is blocking lookups right now - try again in an "
+                      "hour. Unchecked businesses are kept unless "
+                      "skip_unknown_followers is true.")
+                break
+            time.sleep(10)
+            continue
         except requests.RequestException:
             continue
         checked += 1
@@ -491,11 +525,13 @@ def cmd_followers(cfg, force=False):
         flag = " -> skipped" if too_big(lead, cfg) else ""
         print(f"  @{lead['instagram']}: {f if f is not None else '?'} followers{flag}")
         save_leads(leads)
-        time.sleep(2)  # stay well under Instagram's rate limit
+        time.sleep(3)  # stay well under Instagram's rate limit
     save_leads(leads)
+    with_ig = [l for l in leads if l.get("instagram")]
+    unknown = [l for l in with_ig if l.get("followers") is None]
     skipped = sum(1 for l in leads if too_big(l, cfg))
-    print(f"Checked {checked} Instagram accounts, {skipped} over "
-          f"{cfg['max_instagram_followers']} followers are skipped")
+    print(f"Checked {checked}; {skipped} over {cfg.get('max_instagram_followers')} "
+          f"followers skipped; {len(unknown)} of {len(with_ig)} still unknown")
 
 
 # ---------------------------------------------------------------- mockups
@@ -1159,7 +1195,8 @@ def cmd_page(cfg):
     </div>
     <p class="meta">{esc(l['category'])} · {l['distance_m'] / 1000:.1f} km
       {'· @' + esc(l['instagram']) if l['instagram'] else ''}
-      {f"· {l['followers']} followers" if l.get('followers') is not None else ''}</p>
+      {f"· {l['followers']} followers" if l.get('followers') is not None
+       else ('· followers unknown' if l['instagram'] else '')}</p>
     <textarea rows="13">{esc(message_for(l, cfg))}</textarea>
     <div class="actions">
       <button class="btn primary copy">Copy message + image</button>

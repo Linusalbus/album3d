@@ -74,5 +74,6 @@
     "Hair Kiss",
     "Ninja Sushi"
   ],
-  "image_disclaimer": "Digitalt billede – ikke et foto af det færdige produkt"
+  "image_disclaimer": "Digitalt billede – ikke et foto af det færdige produkt",
+  "skip_unknown_followers": false
 }

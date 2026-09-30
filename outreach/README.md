@@ -74,8 +74,10 @@ The target is small, independent places. `find` flags a place as a chain
 - its name matches `chain_names` in `config.json` (add any you spot)
 
 Businesses whose Instagram has more than `max_instagram_followers` (default
-1000) are dropped too. Follower counts are fetched without logging in; if
-Instagram stops answering, the rest are kept and checked on the next run.
+1000) are dropped too. Follower counts are fetched without logging in, and
+counts Instagram wouldn't give are retried on every `followers` run. Unknown
+counts are kept by default; set `skip_unknown_followers` to `true` to drop
+them instead. The review page shows each count, or "followers unknown".
 
 Places without a website are included (`require_website: false`), since many
 small shops only have Instagram. Their logo is the Instagram profile picture
