@@ -1,6 +1,6 @@
 {
   "my_name": "Linus",
-  "message": "Hej {name}!\n\nMit navn er {my_name}, og jeg designer og 3D-printer skræddersyede skilte til butikker i området.\n\nSkiltene har en QR-kode, som kan føre til jeres hjemmeside eller jeres Google Maps-side, så jeres kunder hurtigt kan give jer en anmeldelse.\n\nDe fås i 2 varianter: et fladt (hæng det i vinduet eller læg det på bordet) og et med fod, så det kan stå op. Skiltet er det samme – foden er bare et tillæg. Jeg har vedhæftet billeder af begge modeller med mål. Jeg laver dem også i andre størrelser.\n\nPris:\n• 1 skilt: 50 kr.\n• 3 skilte: 120 kr.\n• Fod: +15 kr. pr. skilt\n\nVi kan også aftale en anden pris.\n\nMvh. {my_name}",
+  "message": "Hej {name}!\n\nMit navn er {my_name}, og jeg designer og 3D-printer skræddersyede skilte til butikker i området.\n\nSkiltene har en QR-kode, som kan føre til jeres hjemmeside eller jeres Google Maps-side, så jeres kunder hurtigt kan give jer en anmeldelse.\n\nDe fås i 2 varianter: et fladt (hæng det i vinduet eller læg det på bordet) og et med fod, så det kan stå op. Skiltet er det samme – foden er bare et tillæg. Skiltet måler 10 × 14 cm, og jeg laver dem også i andre størrelser. Jeg har vedhæftet billeder af begge modeller.\n\nPris:\n• 1 skilt: 50 kr.\n• 3 skilte: 120 kr.\n• Fod: +15 kr. pr. skilt\n\nVi kan også aftale en anden pris.\n\nMvh. {my_name}",
   "image_caption": "Fås også i andre størrelser",
   "origins": [
     {
@@ -57,5 +57,6 @@
       "Kan du lide os?",
       "scan og giv os en anmeldelse"
     ]
-  }
+  },
+  "show_dimensions": false
 }

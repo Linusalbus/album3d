@@ -1,7 +1,7 @@
 # Outreach
 
 Finds cafés, restaurants, bakeries and salons near home, pulls each
-one's logo off its website, and renders a product shot of a 3D-printed QR sign (one standing in a base, one
+one's logo off its website, and renders a product shot of a 3D-printed QR sign (one standing in a black base, one
 lying flat) with
 that logo on it. A review page then gives you one card per business: the
 mockup, a ready-made message, and buttons to copy it and open their Instagram.

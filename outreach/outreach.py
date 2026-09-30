@@ -443,9 +443,9 @@ def render_face(lead, logo, cfg, accent, k=1.5):
         size -= 2
         f1 = ImageFont.truetype(FONT_BOLD, size)
     f2 = ImageFont.truetype(FONT_REG, u(36))
-    d.text((W / 2, u(890)), headline, font=f1, fill=(29, 29, 31), anchor="mm")
-    d.text((W / 2, u(962)), sub, font=f2, fill=(110, 110, 115), anchor="mm")
-    d.rounded_rectangle((W / 2 - u(60), u(1025), W / 2 + u(60), u(1033)), u(4),
+    d.text((W / 2, u(866)), headline, font=f1, fill=(29, 29, 31), anchor="mm")
+    d.text((W / 2, u(936)), sub, font=f2, fill=(110, 110, 115), anchor="mm")
+    d.rounded_rectangle((W / 2 - u(60), u(990), W / 2 + u(60), u(998)), u(4),
                         fill=accent)
     return face
 
@@ -559,9 +559,25 @@ def lying(x, z, yaw_deg, thickness, lift=0.0):
     return place
 
 
-def plate_faces(w, h, t, r, place, color, texture=None):
-    """Faces of a rounded plate w x h x t mm; `place` maps local -> world."""
+def clip_below(outline, y_min):
+    """Cuts a convex outline at the horizontal line y = y_min (keeps above)."""
+    out = []
+    for i, a in enumerate(outline):
+        b = outline[(i + 1) % len(outline)]
+        if a[1] >= y_min:
+            out.append(a)
+        if (a[1] >= y_min) != (b[1] >= y_min):
+            t = (y_min - a[1]) / (b[1] - a[1])
+            out.append((a[0] + (b[0] - a[0]) * t, y_min))
+    return out
+
+
+def plate_faces(w, h, t, r, place, color, texture=None, hidden_below=None):
+    """Faces of a rounded plate w x h x t mm; `place` maps local -> world.
+    `hidden_below` (local y) cuts off the part sunk into a base."""
     outline = rounded_outline(w, h, r)
+    if hidden_below is not None:
+        outline = clip_below(outline, hidden_below)
     front = [place((px, py, t / 2)) for px, py in outline]
     back = [place((px, py, -t / 2)) for px, py in reversed(outline)]
     rect = [place((-w / 2, h / 2, t / 2)), place((w / 2, h / 2, t / 2)),
@@ -616,7 +632,11 @@ def draw_scene(canvas, cam, faces):
             lit.putalpha(tex.getchannel("A"))
             rect2 = [cam.project(p)[:2] for p in f["rect"]]
             d.polygon(pts2, fill=shade(f["color"], light))
-            canvas.alpha_composite(perspective(lit, rect2, canvas.size))
+            warped = perspective(lit, rect2, canvas.size)
+            mask = Image.new("L", canvas.size, 0)
+            ImageDraw.Draw(mask).polygon(pts2, fill=255)  # only the visible face
+            warped.putalpha(ImageChops.multiply(warped.getchannel("A"), mask))
+            canvas.alpha_composite(warped)
         else:
             d.polygon(pts2, fill=shade(f["color"], light))
 
@@ -701,12 +721,13 @@ def render_mockup(lead, cfg):
     pw, ph, pt, pr = PLATE
     bw, bd, bh = BASE
     plate_col = (236, 233, 227)
-    base_col = accent if luminance(accent) < 0.6 else shade(accent, 0.8)
+    base_col = (40, 40, 44)  # the base is always printed in black PLA
 
     stand_x, stand_z, stand_yaw = -38.0, -25.0, 14.0
     base_h = bh
     base_place = lying(stand_x, stand_z, stand_yaw, base_h)
-    upright = standing(stand_x, stand_z, stand_yaw, ph, lift=base_h)
+    sink = 9.0  # how deep the card sits in the slot
+    upright = standing(stand_x, stand_z, stand_yaw, ph, lift=base_h - sink)
     slot = lying(stand_x, stand_z, stand_yaw, 0.01, lift=base_h)
     flat = lying(58.0, 58.0, -12.0, pt)
 
@@ -727,17 +748,18 @@ def render_mockup(lead, cfg):
     # Far to near: base, the slot the sign sits in, the sign, the flat tile.
     draw_scene(scene, cam, plate_faces(bw, bd, bh, 5, base_place, base_col))
     draw_scene(scene, cam, plate_faces(pw + 4, pt + 3, 0.01, 1.2, slot,
-                                       shade(base_col, 0.55))[:1])
-    draw_scene(scene, cam, plate_faces(pw, ph, pt, pr, upright, plate_col, face))
+                                       (14, 14, 16))[:1])
+    draw_scene(scene, cam, plate_faces(pw, ph, pt, pr, upright, plate_col, face,
+                                       hidden_below=-ph / 2 + sink))
     draw_scene(scene, cam, plate_faces(pw, ph, pt, pr, flat, plate_col, face))
 
-    if cfg.get("show_dimensions", True):
+    if cfg.get("show_dimensions", False):
         fz = pt / 2
         # Standing card: width over the top, height down the left side.
         dimension(scene, cam, upright((-pw / 2, ph / 2, fz)), upright((pw / 2, ph / 2, fz)),
                   (0, 12, 0), f"{_mm(pw)} mm", S)
         left = _v_sub(upright((-1, 0, 0)), upright((0, 0, 0)))
-        dimension(scene, cam, upright((-pw / 2, -ph / 2, fz)), upright((-pw / 2, ph / 2, fz)),
+        dimension(scene, cam, upright((-pw / 2, -ph / 2 + sink, fz)), upright((-pw / 2, ph / 2, fz)),
                   tuple(c * 16 for c in left), f"{_mm(ph)} mm", S)
         # Flat card: its full size along the edge nearest the camera.
         near = _v_sub(flat((0, -1, 0)), flat((0, 0, 0)))
