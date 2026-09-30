@@ -739,11 +739,6 @@ def render_mockup(lead, cfg):
         left = _v_sub(upright((-1, 0, 0)), upright((0, 0, 0)))
         dimension(scene, cam, upright((-pw / 2, -ph / 2, fz)), upright((-pw / 2, ph / 2, fz)),
                   tuple(c * 16 for c in left), f"{_mm(ph)} mm", S)
-        # Base: width along its front edge, on the table.
-        fwd = _v_sub(base_place((0, -1, 0)), base_place((0, 0, 0)))
-        dimension(scene, cam, base_place((-bw / 2, -bd / 2, -bh / 2)),
-                  base_place((bw / 2, -bd / 2, -bh / 2)), tuple(c * 14 for c in fwd),
-                  f"fod {_mm(bw)} × {_mm(bd)} × {_mm(bh)} mm", S)
         # Flat card: its full size along the edge nearest the camera.
         near = _v_sub(flat((0, -1, 0)), flat((0, 0, 0)))
         dimension(scene, cam, flat((-pw / 2, -ph / 2, -pt / 2)), flat((pw / 2, -ph / 2, -pt / 2)),
