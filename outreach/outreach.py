@@ -409,23 +409,31 @@ def cmd_logos(cfg, limit=None, force=False):
 IG_APP_ID = "936619743392459"  # the public id instagram.com's own web app sends
 
 
-def parse_count(text):
-    """'1,234' / '1.234' / '12.5K' / '1,2 mio.' -> int."""
-    m = re.match(r"([\d.,]+)\s*([kKmM]?)", text.strip())
-    if not m:
-        return None
-    num, suffix = m.groups()
+FOLLOWERS = re.compile(
+    r'([\d][\d.,\s\u00a0]*?)\s*(k|m|t\.?|tus\.?|tusind|mio\.?|mill?\.?|million(?:er)?)?'
+    r'\s*(?:followers|følgere)', re.I)
+
+
+def parse_count(num, suffix=None):
+    """'1,234' / '1.234' / '12.5K' / '17,4 t.' / '1,2 mio.' -> int."""
+    num = re.sub(r"[\s\u00a0]", "", num)
     if suffix:
-        value = float(num.replace(",", "."))
-        return int(value * (1000 if suffix.lower() == "k" else 1_000_000))
+        mult = 1_000_000 if suffix.lower().startswith("m") else 1000
+        return int(round(float(num.replace(",", ".")) * mult))
     return int(re.sub(r"[.,]", "", num))
 
 
-BROWSER_HEADERS = {
-    "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                   "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"),
-    "Accept-Language": "en-US,en;q=0.9",
-}
+def follower_count_from_html(text):
+    """Follower count from an Instagram profile page, English or Danish."""
+    m = re.search(r'"edge_followed_by":\{"count":(\d+)\}', text)
+    if m:
+        return int(m.group(1))
+    for desc in re.findall(r'<meta[^>]+(?:og:description|name="description")[^>]*>', text):
+        content = re.search(r'content="([^"]+)"', desc)
+        m = FOLLOWERS.search(html.unescape(content.group(1))) if content else None
+        if m:
+            return parse_count(m.group(1), m.group(2))
+    return None
 
 
 def instagram_profile(s, handle):
@@ -448,14 +456,7 @@ def instagram_profile(s, handle):
     r = s.get(f"https://www.instagram.com/{handle}/", headers=BROWSER_HEADERS,
               timeout=15)
     text = r.text
-    count = None
-    m = re.search(r'"edge_followed_by":\{"count":(\d+)\}', text)
-    if m:
-        count = int(m.group(1))
-    else:
-        m = re.search(r'content="([\d.,]+\s*[kKmM]?)\s+(?:Followers|følgere|Følgere)',
-                      text)
-        count = parse_count(m.group(1)) if m else None
+    count = follower_count_from_html(text)
     pic = re.search(r'<meta property="og:image" content="([^"]+)"', text)
     if count is None and (refused or r.status_code in (401, 403, 429)
                           or "/accounts/login" in r.url):
