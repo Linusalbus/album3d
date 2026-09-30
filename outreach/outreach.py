@@ -399,12 +399,12 @@ def qr_target(lead):
 
 
 def render_face(lead, logo, cfg, accent, k=1.5):
-    """The flat sign face. Laid out on an 800x1100 grid, drawn at k times that
+    """The flat sign face. Laid out on an 800x1120 grid (5:7, the 100x140 mm plate), drawn at k times that
     so it stays sharp after the perspective warp."""
     def u(v):
         return int(round(v * k))
 
-    W, H = u(800), u(1100)
+    W, H = u(800), u(1120)
     face = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(face)
     d.rounded_rectangle((0, 0, W - 1, H - 1), radius=u(48), fill=(250, 249, 246))
@@ -443,9 +443,9 @@ def render_face(lead, logo, cfg, accent, k=1.5):
         size -= 2
         f1 = ImageFont.truetype(FONT_BOLD, size)
     f2 = ImageFont.truetype(FONT_REG, u(36))
-    d.text((W / 2, u(880)), headline, font=f1, fill=(29, 29, 31), anchor="mm")
-    d.text((W / 2, u(950)), sub, font=f2, fill=(110, 110, 115), anchor="mm")
-    d.rounded_rectangle((W / 2 - u(60), u(1010), W / 2 + u(60), u(1018)), u(4),
+    d.text((W / 2, u(890)), headline, font=f1, fill=(29, 29, 31), anchor="mm")
+    d.text((W / 2, u(962)), sub, font=f2, fill=(110, 110, 115), anchor="mm")
+    d.rounded_rectangle((W / 2 - u(60), u(1025), W / 2 + u(60), u(1033)), u(4),
                         fill=accent)
     return face
 
@@ -636,6 +636,50 @@ def cast(p):
     return (p[0] - LIGHT[0] * k, 0.0, p[2] - LIGHT[2] * k)
 
 
+# Physical sizes in mm. The card is the same part in both variants; the
+# standing one just slots into the base.
+PLATE = (100.0, 140.0, 4.0, 6.0)   # width, height, thickness, corner radius
+BASE = (130.0, 40.0, 14.0)         # width, depth, height
+
+
+def _mm(v):
+    return f"{v:g}"
+
+
+def dimension(canvas, cam, a, b, offset, label, S):
+    """Draws a dimension line between world points a and b, pushed out by
+    `offset` (a world vector), with extension lines, end ticks and a label."""
+    d = ImageDraw.Draw(canvas)
+    col = (88, 88, 94, 255)
+    a2 = tuple(a[i] + offset[i] for i in range(3))
+    b2 = tuple(b[i] + offset[i] for i in range(3))
+    pa, pb = cam.project(a)[:2], cam.project(b)[:2]
+    qa, qb = cam.project(a2)[:2], cam.project(b2)[:2]
+    lw = max(1, int(1.6 * S))
+    for p, q in ((pa, qa), (pb, qb)):
+        # Extension line from a little off the part to just past the dim line.
+        d.line((p[0] + (q[0] - p[0]) * 0.25, p[1] + (q[1] - p[1]) * 0.25,
+                q[0] + (q[0] - p[0]) * 0.15, q[1] + (q[1] - p[1]) * 0.15),
+               fill=(88, 88, 94, 140), width=lw)
+    d.line((*qa, *qb), fill=col, width=lw)
+    dx, dy = qb[0] - qa[0], qb[1] - qa[1]
+    n = math.hypot(dx, dy) or 1
+    ux, uy = dx / n, dy / n
+    t = 7 * S
+    for q, sgn in ((qa, 1), (qb, -1)):  # small arrowheads pointing outwards
+        d.polygon([q, (q[0] + sgn * ux * t * 2 - uy * t * 0.6, q[1] + sgn * uy * t * 2 + ux * t * 0.6),
+                   (q[0] + sgn * ux * t * 2 + uy * t * 0.6, q[1] + sgn * uy * t * 2 - ux * t * 0.6)],
+                  fill=col)
+    font = ImageFont.truetype(FONT_BOLD, 24 * S)
+    mx, my = (qa[0] + qb[0]) / 2, (qa[1] + qb[1]) / 2
+    tw = d.textlength(label, font=font)
+    pad_x, pad_y = 10 * S, 6 * S
+    box = (mx - tw / 2 - pad_x, my - 14 * S - pad_y, mx + tw / 2 + pad_x, my + 14 * S + pad_y)
+    d.rounded_rectangle(box, radius=10 * S, fill=(255, 255, 255, 235),
+                        outline=(0, 0, 0, 25), width=max(1, S))
+    d.text((mx, my), label, font=font, fill=col, anchor="mm")
+
+
 def render_mockup(lead, cfg):
     logo = Image.open(os.path.join(DATA, lead["logo"])).convert("RGBA")
     logo = remove_flat_background(logo)
@@ -654,13 +698,13 @@ def render_mockup(lead, cfg):
 
     cam = Camera(eye=(120, 185, 500), target=(8, 52, 12), fov_deg=30, size=(W, H))
 
-    # Plate: 100 x 137.5 mm (the face's 8:11 ratio), 4 mm thick, PLA white.
-    pw, ph, pt, pr = 100.0, 137.5, 4.0, 6.0
+    pw, ph, pt, pr = PLATE
+    bw, bd, bh = BASE
     plate_col = (236, 233, 227)
     base_col = accent if luminance(accent) < 0.6 else shade(accent, 0.8)
 
     stand_x, stand_z, stand_yaw = -38.0, -25.0, 14.0
-    base_h = 14.0
+    base_h = bh
     base_place = lying(stand_x, stand_z, stand_yaw, base_h)
     upright = standing(stand_x, stand_z, stand_yaw, ph, lift=base_h)
     slot = lying(stand_x, stand_z, stand_yaw, 0.01, lift=base_h)
@@ -670,7 +714,7 @@ def render_mockup(lead, cfg):
     def ground(place, w, h):
         return [(p[0], 0.0, p[2]) for p in
                 (place((x, y, 0)) for x, y in rounded_outline(w, h, 5))]
-    base_fp = ground(base_place, 130, 40)
+    base_fp = ground(base_place, bw, bd)
     flat_fp = ground(flat, pw, ph)
     tops = [cast(upright((x, ph / 2, 0))) for x in (-pw / 2, pw / 2)]
     bots = [(p[0], 0.0, p[2]) for p in
@@ -681,11 +725,36 @@ def render_mockup(lead, cfg):
     scene.paste(Image.new("RGBA", (W, H), (70, 64, 58, 255)), (0, 0), shadow)
 
     # Far to near: base, the slot the sign sits in, the sign, the flat tile.
-    draw_scene(scene, cam, plate_faces(130, 40, base_h, 5, base_place, base_col))
+    draw_scene(scene, cam, plate_faces(bw, bd, bh, 5, base_place, base_col))
     draw_scene(scene, cam, plate_faces(pw + 4, pt + 3, 0.01, 1.2, slot,
                                        shade(base_col, 0.55))[:1])
     draw_scene(scene, cam, plate_faces(pw, ph, pt, pr, upright, plate_col, face))
     draw_scene(scene, cam, plate_faces(pw, ph, pt, pr, flat, plate_col, face))
+
+    if cfg.get("show_dimensions", True):
+        fz = pt / 2
+        # Standing card: width over the top, height down the left side.
+        dimension(scene, cam, upright((-pw / 2, ph / 2, fz)), upright((pw / 2, ph / 2, fz)),
+                  (0, 12, 0), f"{_mm(pw)} mm", S)
+        left = _v_sub(upright((-1, 0, 0)), upright((0, 0, 0)))
+        dimension(scene, cam, upright((-pw / 2, -ph / 2, fz)), upright((-pw / 2, ph / 2, fz)),
+                  tuple(c * 16 for c in left), f"{_mm(ph)} mm", S)
+        # Base: width along its front edge, on the table.
+        fwd = _v_sub(base_place((0, -1, 0)), base_place((0, 0, 0)))
+        dimension(scene, cam, base_place((-bw / 2, -bd / 2, -bh / 2)),
+                  base_place((bw / 2, -bd / 2, -bh / 2)), tuple(c * 14 for c in fwd),
+                  f"fod {_mm(bw)} × {_mm(bd)} × {_mm(bh)} mm", S)
+        # Flat card: its full size along the edge nearest the camera.
+        near = _v_sub(flat((0, -1, 0)), flat((0, 0, 0)))
+        dimension(scene, cam, flat((-pw / 2, -ph / 2, -pt / 2)), flat((pw / 2, -ph / 2, -pt / 2)),
+                  tuple(c * 14 for c in near),
+                  f"{_mm(pw)} × {_mm(ph)} × {_mm(pt)} mm", S)
+
+    caption = cfg.get("image_caption")
+    if caption:
+        d = ImageDraw.Draw(scene)
+        font = ImageFont.truetype(FONT_BOLD, 30 * S)
+        d.text((W - 56 * S, 56 * S), caption, font=font, fill=(60, 60, 66), anchor="ra")
 
     out = scene.resize((W // S, H // S), Image.LANCZOS).convert("RGB")
     path = os.path.join(MOCKUPS, f"{lead['id']}.jpg")

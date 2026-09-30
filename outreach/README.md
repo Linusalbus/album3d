@@ -58,7 +58,8 @@ Without it they are skipped and the tool falls back to a PNG icon.
 
 ## Customize
 
-Everything is in `config.json`: your name, the message, radius, business
+Everything is in `config.json`: your name, the message, the caption in the
+top corner of the image (`image_caption`), `show_dimensions`, radius, business
 types and the text on the sign for each type. Placeholders in `message`:
 `{name}` and `{my_name}`.
 
