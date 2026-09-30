@@ -10,7 +10,8 @@ Usage:
     python outreach.py followers  # follower counts (+ profile pic as logo)
     python outreach.py mockups    # photoreal Blender render per business
     python outreach.py page       # data/index.html to review and copy messages
-    python outreach.py all        # everything above in order
+    python outreach.py serve      # open the page (needed to copy images)
+    python outreach.py all        # everything above, then serve
 """
 
 import argparse
@@ -943,14 +944,21 @@ def render_mockup_simple(lead, cfg):
 
 
 def add_caption(path, cfg):
-    caption = cfg.get("image_caption")
-    if not caption:
+    """The size note top right and a small 'digital image' disclaimer
+    bottom left."""
+    caption, disclaimer = cfg.get("image_caption"), cfg.get("image_disclaimer")
+    if not caption and not disclaimer:
         return
     img = Image.open(path).convert("RGB")
     d = ImageDraw.Draw(img)
-    font = ImageFont.truetype(FONT_BOLD, max(14, img.width // 53))
     m = img.width // 28
-    d.text((img.width - m, m), caption, font=font, fill=(44, 42, 40), anchor="ra")
+    if caption:
+        font = ImageFont.truetype(FONT_BOLD, max(14, img.width // 53))
+        d.text((img.width - m, m), caption, font=font, fill=(44, 42, 40), anchor="ra")
+    if disclaimer:
+        font = ImageFont.truetype(FONT_REG, max(11, img.width // 80))
+        d.text((m, img.height - m), disclaimer, font=font, fill=(70, 66, 62),
+               anchor="ld")
     img.save(path, quality=92)
 
 
@@ -1049,7 +1057,7 @@ def cmd_page(cfg):
         ig = (f"https://www.instagram.com/{esc(l['instagram'])}/" if l["instagram"]
               else "https://www.google.com/search?q="
               + quote_plus(f"{l['name']} København instagram"))
-        links = [f'<a href="{ig}" target="_blank" rel="noopener" class="btn primary">'
+        links = [f'<a href="{ig}" target="_blank" rel="noopener" class="btn">'
                  f'{"Open Instagram" if l["instagram"] else "Find Instagram"}</a>']
         if l["website"]:
             links.append(f'<a href="{esc(l["website"])}" target="_blank" rel="noopener" '
@@ -1072,7 +1080,8 @@ def cmd_page(cfg):
       {f"· {l['followers']} followers" if l.get('followers') is not None else ''}</p>
     <textarea rows="13">{esc(message_for(l, cfg))}</textarea>
     <div class="actions">
-      <button class="btn copy">Copy message</button>
+      <button class="btn primary copy">Copy message + image</button>
+      <button class="btn copy-img">Copy image</button>
       <a class="btn" href="mockups/{esc(l['id'])}.jpg" download="{esc(l['name'])} mockup.jpg">Save image</a>
       {''.join(links)}
     </div>
@@ -1121,6 +1130,7 @@ border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;text-decoration:n
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
 .card[data-status=sent]{opacity:.6}.card[data-status=no]{opacity:.35}
 .card[data-status=won]{border-color:#34c759}
+.note{max-width:1200px;margin:8px auto 0;padding:0 0;color:var(--muted);font-size:13px}
 @media (max-width:420px){main{grid-template-columns:1fr}}
 </style></head><body>
 <header><div class="bar">
@@ -1158,13 +1168,58 @@ for (const c of cards) {
   const sel = c.querySelector(".status");
   sel.value = store[c.dataset.id] || "new";
   sel.onchange = () => { store[c.dataset.id] = sel.value; save(); refresh(); };
-  c.querySelector(".copy").onclick = async (e) => {
-    const ta = c.querySelector("textarea");
-    try { await navigator.clipboard.writeText(ta.value); }
-    catch (err) { ta.select(); document.execCommand("copy"); }
-    e.target.textContent = "Copied ✓";
-    setTimeout(() => e.target.textContent = "Copy message", 1500);
-  };
+  c.querySelector(".copy").onclick = (e) => copyCard(c, e.target, true);
+  c.querySelector(".copy-img").onclick = (e) => copyCard(c, e.target, false);
+}
+
+// Clipboard images must be PNG and need the page served over http
+// (python outreach.py serve); from file:// only the text can be copied.
+async function pngBlob(src) {
+  const bmp = await createImageBitmap(await (await fetch(src)).blob());
+  const cv = document.createElement("canvas");
+  cv.width = bmp.width; cv.height = bmp.height;
+  cv.getContext("2d").drawImage(bmp, 0, 0);
+  return new Promise(res => cv.toBlob(res, "image/png"));
+}
+
+async function copyCard(c, btn, withText) {
+  const label = btn.textContent;
+  const text = c.querySelector("textarea").value;
+  const src = c.querySelector("img").getAttribute("src");
+  try {
+    const item = {"image/png": pngBlob(src)};
+    if (withText) {
+      item["text/plain"] = new Blob([text], {type: "text/plain"});
+      const png = await item["image/png"];
+      const dataUrl = await new Promise(r => { const f = new FileReader();
+        f.onload = () => r(f.result); f.readAsDataURL(png); });
+      const htmlText = text.split("\\n").map(l => l ? l.replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;") : "<br>").join("<br>");
+      item["text/html"] = new Blob([`<div>${htmlText}</div><br><img src="${dataUrl}" width="600">`],
+        {type: "text/html"});
+      item["image/png"] = png;
+    }
+    await navigator.clipboard.write([new ClipboardItem(item)]);
+    btn.textContent = "Copied ✓";
+  } catch (err) {
+    if (withText) {
+      const ta = c.querySelector("textarea");
+      try { await navigator.clipboard.writeText(text); }
+      catch (e2) { ta.select(); document.execCommand("copy"); }
+      btn.textContent = "Text only ✓ (run serve for image)";
+    } else {
+      btn.textContent = "Run serve to copy images";
+    }
+  }
+  setTimeout(() => btn.textContent = label, 2500);
+}
+
+if (location.protocol === "file:") {
+  const note = document.createElement("p");
+  note.className = "note";
+  note.textContent = "Opened as a file, so only text can be copied. Run "
+    + '"python outreach.py serve" to copy the image too.';
+  document.querySelector("header .bar").after(note);
 }
 document.getElementById("filter").onchange = refresh;
 document.getElementById("export").onclick = () => {
@@ -1181,13 +1236,32 @@ refresh();
 """
 
 
+def cmd_serve(port=8765):
+    """Serves the review page on localhost so the browser allows copying
+    images to the clipboard."""
+    import functools
+    import http.server
+    import webbrowser
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=DATA)
+    handler.log_message = lambda *a: None
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
+    url = f"http://127.0.0.1:{port}/index.html"
+    print(f"Review page: {url}  (Ctrl+C to stop)")
+    webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
 # ---------------------------------------------------------------- cli
 
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("command",
-                   choices=["find", "logos", "followers", "mockups", "page", "all"])
+                   choices=["find", "logos", "followers", "mockups", "page", "all",
+                            "serve"])
     p.add_argument("--limit", type=int, help="only process this many businesses")
     p.add_argument("--force", action="store_true",
                    help="redo work already done (logos, follower counts, mockups)")
@@ -1204,6 +1278,8 @@ def main():
         cmd_mockups(cfg, args.limit, args.force)
     if args.command in ("page", "all"):
         cmd_page(cfg)
+    if args.command in ("serve", "all"):
+        cmd_serve()
 
 
 if __name__ == "__main__":

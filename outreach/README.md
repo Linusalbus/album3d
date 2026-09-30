@@ -50,9 +50,14 @@ few minutes once.
 
 ## Workflow on the review page
 
+Open the page with `python outreach.py serve` (plain `open data/index.html`
+works too, but then the browser only lets the page copy text, not images).
+
 1. Look at the mockup. Skip it if the logo came out wrong.
-2. Click **Save image**, then **Open Instagram**.
-3. Click **Copy message**, paste it into a DM, attach the image and send.
+2. Click **Copy message + image**, then **Open Instagram**.
+3. Paste into the DM. Mail apps get text and image in one paste; if a chat
+   only takes one of them, paste the text, then click **Copy image** and
+   paste again.
 4. Set the status to **Sent**. Update it to **Replied** or **Won** later.
 
 Statuses are saved in the browser. **Export CSV** downloads them as a backup.
@@ -88,7 +93,8 @@ Without it they are skipped and the tool falls back to a PNG icon.
 ## Customize
 
 Everything is in `config.json`: your name, the message, the caption in the
-top corner of the image (`image_caption`), `show_dimensions`, radius, business
+top corner of the image (`image_caption`), the small disclaimer bottom left
+(`image_disclaimer`), `show_dimensions`, radius, business
 types and the placeholder shown where the customer's own text goes
 (`sign_placeholder`). Placeholders in `message`:
 `{name}` and `{my_name}`.
