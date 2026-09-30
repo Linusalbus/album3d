@@ -43,7 +43,10 @@ Or one step at a time:
 | `python outreach.py page` | Builds `data/index.html` |
 
 `--limit 20` processes only the first 20 businesses (closest first), which is
-handy for a first test run.
+handy for a first test run. `mockups` skips businesses that already have a
+mockup; add `--force` to re-render all of them (e.g. after changing the design).
+The very first Blender render on a Mac compiles GPU kernels, which takes a
+few minutes once.
 
 ## Workflow on the review page
 

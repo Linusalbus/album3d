@@ -885,13 +885,21 @@ def find_blender():
     return None
 
 
-def cmd_mockups(cfg, limit=None):
+def cmd_mockups(cfg, limit=None, force=False):
     os.makedirs(MOCKUPS, exist_ok=True)
     faces_dir = os.path.join(DATA, "faces")
     os.makedirs(faces_dir, exist_ok=True)
     leads = [l for l in load_leads() if l.get("logo") and not too_big(l, cfg)]
+    if not force:
+        have = [l for l in leads if os.path.exists(os.path.join(MOCKUPS, f"{l['id']}.jpg"))]
+        if have:
+            print(f"  {len(have)} already rendered - skipping them (--force re-renders all)")
+        leads = [l for l in leads if l not in have]
     if limit:
         leads = leads[:limit]
+    if not leads:
+        print("Nothing to render")
+        return
 
     blender = find_blender() if cfg.get("renderer", "auto") != "simple" else None
     if not blender:
@@ -913,15 +921,28 @@ def cmd_mockups(cfg, limit=None):
     spec = os.path.join(DATA, "render_jobs.json")
     with open(spec, "w", encoding="utf-8") as f:
         json.dump({"samples": cfg.get("render_samples", 128), "jobs": jobs}, f)
-    print(f"  Rendering {len(jobs)} mockups in Blender…")
-    proc = subprocess.run(blender + [spec], capture_output=True, text=True)
-    done = [j for j in jobs if os.path.exists(j["out"])
-            and os.path.getmtime(j["out"]) >= os.path.getmtime(spec)]
+    print(f"  Rendering {len(jobs)} mockups in Blender (log: data/blender.log)")
+    names = {j["out"]: lead["name"] for j, lead in zip(jobs, leads)}
+    done, hinted, start = [], False, time.time()
+    with open(os.path.join(DATA, "blender.log"), "w", encoding="utf-8") as log:
+        proc = subprocess.Popen(blender + [spec], stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True, bufsize=1)
+        for line in proc.stdout:
+            log.write(line)
+            if "ompil" in line and not hinted:
+                hinted = True
+                print("  Blender is compiling GPU kernels - one-time, takes a few minutes")
+            if line.startswith("rendered "):
+                out = line[len("rendered "):].strip()
+                add_caption(out, cfg)
+                done.append(out)
+                per = (time.time() - start) / len(done)
+                left = per * (len(jobs) - len(done))
+                print(f"  [{len(done)}/{len(jobs)}] {names.get(out, out)}"
+                      f"  (~{left / 60:.0f} min left)", flush=True)
+        proc.wait()
     if proc.returncode != 0 and len(done) < len(jobs):
-        print(proc.stdout[-2000:], proc.stderr[-2000:])
-        sys.exit("Blender failed - output above.")
-    for j in done:
-        add_caption(j["out"], cfg)
+        sys.exit("Blender failed - see data/blender.log")
     print(f"Rendered {len(done)} mockups -> {os.path.relpath(MOCKUPS)}")
 
 
@@ -1084,7 +1105,7 @@ def main():
                    choices=["find", "logos", "followers", "mockups", "page", "all"])
     p.add_argument("--limit", type=int, help="only process this many businesses")
     p.add_argument("--force", action="store_true",
-                   help="re-download logos even if one is already saved")
+                   help="redo work already done (logos, follower counts, mockups)")
     args = p.parse_args()
     cfg = load_config()
 
@@ -1095,7 +1116,7 @@ def main():
     if args.command in ("followers", "all"):
         cmd_followers(cfg, args.force)
     if args.command in ("mockups", "all"):
-        cmd_mockups(cfg, args.limit)
+        cmd_mockups(cfg, args.limit, args.force)
     if args.command in ("page", "all"):
         cmd_page(cfg)
 

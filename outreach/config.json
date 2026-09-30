@@ -25,5 +25,5 @@
   "max_instagram_followers": 1000,
   "skip_chains": true,
   "renderer": "auto",
-  "render_samples": 128
+  "render_samples": 64
 }
