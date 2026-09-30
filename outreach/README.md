@@ -87,3 +87,18 @@ leave a review. When someone orders, ask them for their direct review link
 `data/leads.json` as `"review_url"`, and re-render.
 
 `data/` holds scraped business info and logos and is git-ignored.
+
+## Printing the sign
+
+`models/` has the real parts as STL (Bambu Studio / Orca) and STEP (Fusion 360):
+
+| Part | Size | Print |
+|---|---|---|
+| `card` | 100 × 140 × 4 mm | Flat, white PLA. ~45 g |
+| `base` | 130 × 40 × 14 mm, 9 mm deep slot | Slot up, black PLA, 15 % infill, no supports. ~30 g |
+| `slot_test` | 70 × 22 × 14 mm | Slots with 0.2 / 0.3 / 0.4 mm clearance (numbers engraved) |
+
+Print `slot_test` and one `card` first. The right slot takes the card with a
+light push and doesn't wobble. The base uses 0.3 mm; if another slot fits
+better, set `SLOT_CLEARANCE` in `models/make_models.py` and run
+`pip install cadquery && python models/make_models.py` to regenerate.
