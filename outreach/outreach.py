@@ -5,7 +5,7 @@ messages break Danish marketing law (markedsføringsloven §10) and get
 Instagram accounts banned.
 
 Usage:
-    python outreach.py find       # businesses near the origins (OpenStreetMap)
+    python outreach.py find       # businesses near home (OpenStreetMap)
     python outreach.py logos      # logo + Instagram/e-mail from each website
     python outreach.py mockups    # one mockup PNG per business with a logo
     python outreach.py page       # data/index.html to review and copy messages
@@ -36,7 +36,13 @@ LEADS = os.path.join(DATA, "leads.json")
 
 USER_AGENT = "outreach-leads/1.0 (personal small-business outreach)"
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
-OVERPASS = "https://overpass-api.de/api/interpreter"
+# Public Overpass servers, tried in order: the main one often answers 504
+# when it is busy.
+OVERPASS_SERVERS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+]
 
 
 def _first_font(*candidates):
@@ -111,14 +117,37 @@ def distance_m(a, b):
     return 6371000 * 2 * math.asin(math.sqrt(h))
 
 
-def overpass_query(points, radius, categories):
+def overpass_query(points, radius, categories, require_website):
+    """One clause per tag key and origin (values OR'ed in a regex) keeps the
+    query light enough that busy public servers don't time out on it."""
+    by_key = {}
+    for cat in categories:
+        key, value = cat.split("=", 1)
+        by_key.setdefault(key, []).append(re.escape(value))
+    site = '[~"^(contact:)?website$"~"."]' if require_website else ""
     parts = []
     for lat, lon in points:
-        for cat in categories:
-            key, value = cat.split("=", 1)
-            parts.append(f'nwr["{key}"="{value}"]["name"]'
+        for key, values in by_key.items():
+            parts.append(f'nwr["{key}"~"^({"|".join(values)})$"]["name"]{site}'
                          f'(around:{radius},{lat},{lon});')
-    return f"[out:json][timeout:90];({''.join(parts)});out center tags;"
+    return f"[out:json][timeout:180];({''.join(parts)});out center tags;"
+
+
+def run_overpass(s, query):
+    last = None
+    for attempt in range(2):
+        for url in OVERPASS_SERVERS:
+            try:
+                r = s.post(url, data={"data": query}, timeout=200)
+                r.raise_for_status()
+                return r.json().get("elements", [])
+            except (requests.RequestException, ValueError) as e:
+                last = e
+                print(f"  {urlparse(url).netloc} failed ({e.__class__.__name__}), "
+                      "trying the next server…")
+        time.sleep(10 * (attempt + 1))
+    raise RuntimeError(f"All Overpass servers failed, try again in a few "
+                       f"minutes or lower radius_m in config.json ({last})")
 
 
 def normalize_url(url):
@@ -146,10 +175,9 @@ def cmd_find(cfg):
         points.append(geocode(s, origin))
         print(f"  {origin['label']}: {points[-1][0]:.5f}, {points[-1][1]:.5f}")
 
-    query = overpass_query(points, cfg["radius_m"], cfg["categories"])
-    r = s.post(OVERPASS, data={"data": query}, timeout=120)
-    r.raise_for_status()
-    elements = r.json().get("elements", [])
+    query = overpass_query(points, cfg["radius_m"], cfg["categories"],
+                           cfg.get("require_website", True))
+    elements = run_overpass(s, query)
 
     old = {lead["id"]: lead for lead in load_leads()}
     leads = {}

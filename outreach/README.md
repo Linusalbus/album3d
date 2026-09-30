@@ -1,6 +1,6 @@
 # Outreach
 
-Finds cafés, restaurants, bakeries and salons near home and school, pulls each
+Finds cafés, restaurants, bakeries and salons near home, pulls each
 one's logo off its website, and renders a 3D-printed QR table-sign mockup with
 that logo on it. A review page then gives you one card per business: the
 mockup, a ready-made message, and buttons to copy it and open their Instagram.

@@ -1,8 +1,10 @@
 {
   "my_name": "Linus",
   "origins": [
-    {"label": "home", "address": "Genuavej 31, 2300 København S, Denmark"},
-    {"label": "school", "address": "Jagtvej 163, 2100 København Ø, Denmark"}
+    {
+      "label": "home",
+      "address": "Genuavej 31, 2300 København S, Denmark"
+    }
   ],
   "radius_m": 3000,
   "categories": [
@@ -22,15 +24,42 @@
     "price_dkk": 500
   },
   "sign_text": {
-    "cafe": ["Scan for menu", "og betal med MobilePay"],
-    "restaurant": ["Scan for menu", "og betal med MobilePay"],
-    "bar": ["Scan for menu", "drinks & snacks"],
-    "ice_cream": ["Scan for menu", "alle vores smage"],
-    "bakery": ["Kan du lide os?", "scan og giv os en anmeldelse"],
-    "coffee": ["Scan for menu", "og betal med MobilePay"],
-    "hairdresser": ["Book næste tid", "scan og vælg et tidspunkt"],
-    "beauty": ["Book næste tid", "scan og vælg et tidspunkt"],
-    "default": ["Scan her", "og besøg vores hjemmeside"]
+    "cafe": [
+      "Scan for menu",
+      "og betal med MobilePay"
+    ],
+    "restaurant": [
+      "Scan for menu",
+      "og betal med MobilePay"
+    ],
+    "bar": [
+      "Scan for menu",
+      "drinks & snacks"
+    ],
+    "ice_cream": [
+      "Scan for menu",
+      "alle vores smage"
+    ],
+    "bakery": [
+      "Kan du lide os?",
+      "scan og giv os en anmeldelse"
+    ],
+    "coffee": [
+      "Scan for menu",
+      "og betal med MobilePay"
+    ],
+    "hairdresser": [
+      "Book næste tid",
+      "scan og vælg et tidspunkt"
+    ],
+    "beauty": [
+      "Book næste tid",
+      "scan og vælg et tidspunkt"
+    ],
+    "default": [
+      "Scan her",
+      "og besøg vores hjemmeside"
+    ]
   },
   "message_openers": [
     "Hej {name}!",
