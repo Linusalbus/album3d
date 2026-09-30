@@ -7,18 +7,22 @@ Instagram accounts banned.
 Usage:
     python outreach.py find       # businesses near home (OpenStreetMap)
     python outreach.py logos      # logo + Instagram/e-mail from each website
-    python outreach.py mockups    # one mockup PNG per business with a logo
+    python outreach.py followers  # skip Instagram accounts over the limit
+    python outreach.py mockups    # photoreal Blender render per business
     python outreach.py page       # data/index.html to review and copy messages
     python outreach.py all        # everything above in order
 """
 
 import argparse
 import html
+import importlib.util
 import io
 import json
 import math
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 from html.parser import HTMLParser
@@ -208,17 +212,25 @@ def cmd_find(cfg):
             "email": tags.get("email") or tags.get("contact:email") or "",
             "phone": tags.get("phone") or tags.get("contact:phone") or "",
             "distance_m": round(min(distance_m((lat, lon), p) for p in points)),
+            "chain": bool(tags.get("brand") or tags.get("brand:wikidata")),
             "logo": "",
         }
         # Keep what earlier runs found (logo, scraped Instagram) for this place.
         prev = old.get(lead_id, {})
         for key in ("logo", "instagram", "email"):
             lead[key] = lead[key] or prev.get(key, "")
+        if "followers" in prev:
+            lead["followers"] = prev["followers"]
         leads[lead_id] = lead
 
     result = sorted(leads.values(), key=lambda l: l["distance_m"])
     if cfg.get("require_website", True):
         result = [l for l in result if l["website"]]
+    if cfg.get("skip_chains", True):
+        chains = [l["name"] for l in result if l["chain"]]
+        result = [l for l in result if not l["chain"]]
+        if chains:
+            print(f"  skipped {len(chains)} chains (e.g. {', '.join(chains[:3])})")
     save_leads(result)
     print(f"Found {len(result)} businesses -> {os.path.relpath(LEADS)}")
 
@@ -352,6 +364,77 @@ def cmd_logos(cfg, limit=None, force=False):
         save_leads(leads)  # survive a Ctrl-C halfway through
     save_leads(leads)
     print(f"{sum(1 for l in leads if l['logo'])} of {len(leads)} have a logo")
+
+
+# ---------------------------------------------------------------- followers
+
+IG_APP_ID = "936619743392459"  # the public id instagram.com's own web app sends
+
+
+def parse_count(text):
+    """'1,234' / '1.234' / '12.5K' / '1,2 mio.' -> int."""
+    m = re.match(r"([\d.,]+)\s*([kKmM]?)", text.strip())
+    if not m:
+        return None
+    num, suffix = m.groups()
+    if suffix:
+        value = float(num.replace(",", "."))
+        return int(value * (1000 if suffix.lower() == "k" else 1_000_000))
+    return int(re.sub(r"[.,]", "", num))
+
+
+def instagram_followers(s, handle):
+    """Best effort, no login. Returns None when Instagram won't say."""
+    r = s.get("https://i.instagram.com/api/v1/users/web_profile_info/",
+              params={"username": handle},
+              headers={"x-ig-app-id": IG_APP_ID}, timeout=15)
+    if r.status_code == 200:
+        try:
+            return r.json()["data"]["user"]["edge_followed_by"]["count"]
+        except (ValueError, KeyError, TypeError):
+            pass
+    if r.status_code in (401, 403, 429):
+        raise PermissionError(r.status_code)
+    r = s.get(f"https://www.instagram.com/{handle}/", timeout=15)
+    m = re.search(r'<meta[^>]+content="([\d.,]+\s*[kKmM]?)\s+(?:Followers|følgere)',
+                  r.text)
+    return parse_count(m.group(1)) if m else None
+
+
+def too_big(lead, cfg):
+    limit = cfg.get("max_instagram_followers")
+    return bool(limit and (lead.get("followers") or 0) > limit)
+
+
+def cmd_followers(cfg, force=False):
+    """Looks up follower counts for leads with an Instagram handle, so big
+    accounts (already busy, not the target) can be skipped."""
+    if not cfg.get("max_instagram_followers"):
+        return
+    leads = load_leads()
+    s = session()
+    checked = 0
+    for lead in leads:
+        if not lead.get("instagram") or ("followers" in lead and not force):
+            continue
+        try:
+            lead["followers"] = instagram_followers(s, lead["instagram"])
+        except PermissionError as e:
+            print(f"  Instagram stopped answering ({e}); try again later. "
+                  "Unchecked businesses are kept.")
+            break
+        except requests.RequestException:
+            continue
+        checked += 1
+        f = lead["followers"]
+        flag = " -> skipped" if too_big(lead, cfg) else ""
+        print(f"  @{lead['instagram']}: {f if f is not None else '?'} followers{flag}")
+        save_leads(leads)
+        time.sleep(2)  # stay well under Instagram's rate limit
+    save_leads(leads)
+    skipped = sum(1 for l in leads if too_big(l, cfg))
+    print(f"Checked {checked} Instagram accounts, {skipped} over "
+          f"{cfg['max_instagram_followers']} followers are skipped")
 
 
 # ---------------------------------------------------------------- mockups
@@ -697,11 +780,15 @@ def dimension(canvas, cam, a, b, offset, label, S):
     d.text((mx, my), label, font=font, fill=col, anchor="mm")
 
 
-def render_mockup(lead, cfg):
+def make_face(lead, cfg):
     logo = Image.open(os.path.join(DATA, lead["logo"])).convert("RGBA")
     logo = remove_flat_background(logo)
-    accent = accent_color(logo)
-    face = render_face(lead, logo, cfg, accent)
+    return render_face(lead, logo, cfg, accent_color(logo))
+
+
+def render_mockup_simple(lead, cfg):
+    """Fallback renderer (Pillow only) for when Blender isn't installed."""
+    face = make_face(lead, cfg)
 
     S = 2  # supersample for clean edges
     W, H = 1600 * S, 1200 * S
@@ -764,28 +851,78 @@ def render_mockup(lead, cfg):
                   tuple(c * 14 for c in near),
                   f"{_mm(pw)} × {_mm(ph)} × {_mm(pt)} mm", S)
 
-    caption = cfg.get("image_caption")
-    if caption:
-        d = ImageDraw.Draw(scene)
-        font = ImageFont.truetype(FONT_BOLD, 30 * S)
-        d.text((W - 56 * S, 56 * S), caption, font=font, fill=(44, 42, 40), anchor="ra")
-
     out = scene.resize((W // S, H // S), Image.LANCZOS).convert("RGB")
     path = os.path.join(MOCKUPS, f"{lead['id']}.jpg")
     out.save(path, quality=92)
     return path
 
 
+def add_caption(path, cfg):
+    caption = cfg.get("image_caption")
+    if not caption:
+        return
+    img = Image.open(path).convert("RGB")
+    d = ImageDraw.Draw(img)
+    font = ImageFont.truetype(FONT_BOLD, max(14, img.width // 53))
+    m = img.width // 28
+    d.text((img.width - m, m), caption, font=font, fill=(44, 42, 40), anchor="ra")
+    img.save(path, quality=92)
+
+
+def find_blender():
+    """Command prefix that runs render_blender.py, or None. Prefers the
+    Blender app (works with any Python), then the pip `bpy` module."""
+    script = os.path.join(HERE, "render_blender.py")
+    candidates = [os.environ.get("BLENDER"),
+                  "/Applications/Blender.app/Contents/MacOS/Blender",
+                  shutil.which("blender"),
+                  "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe"]
+    for exe in candidates:
+        if exe and os.path.exists(exe):
+            return [exe, "-b", "--factory-startup", "-P", script, "--"]
+    if importlib.util.find_spec("bpy"):
+        return [sys.executable, script]
+    return None
+
+
 def cmd_mockups(cfg, limit=None):
     os.makedirs(MOCKUPS, exist_ok=True)
-    leads = load_leads()
-    done = 0
+    faces_dir = os.path.join(DATA, "faces")
+    os.makedirs(faces_dir, exist_ok=True)
+    leads = [l for l in load_leads() if l.get("logo") and not too_big(l, cfg)]
+    if limit:
+        leads = leads[:limit]
+
+    blender = find_blender() if cfg.get("renderer", "auto") != "simple" else None
+    if not blender:
+        if cfg.get("renderer") == "blender":
+            sys.exit("Blender not found. Install it from blender.org, or set BLENDER "
+                     "to its path.")
+        print("  Blender not found - using the simple renderer. Install Blender "
+              "(blender.org) for photoreal mockups.")
+        for lead in leads:
+            add_caption(render_mockup_simple(lead, cfg), cfg)
+        print(f"Rendered {len(leads)} mockups -> {os.path.relpath(MOCKUPS)}")
+        return
+
+    jobs = []
     for lead in leads:
-        if not lead.get("logo") or (limit and done >= limit):
-            continue
-        render_mockup(lead, cfg)
-        done += 1
-    print(f"Rendered {done} mockups -> {os.path.relpath(MOCKUPS)}")
+        face = os.path.join(faces_dir, f"{lead['id']}.png")
+        make_face(lead, cfg).save(face)
+        jobs.append({"face": face, "out": os.path.join(MOCKUPS, f"{lead['id']}.jpg")})
+    spec = os.path.join(DATA, "render_jobs.json")
+    with open(spec, "w", encoding="utf-8") as f:
+        json.dump({"samples": cfg.get("render_samples", 128), "jobs": jobs}, f)
+    print(f"  Rendering {len(jobs)} mockups in Blender…")
+    proc = subprocess.run(blender + [spec], capture_output=True, text=True)
+    done = [j for j in jobs if os.path.exists(j["out"])
+            and os.path.getmtime(j["out"]) >= os.path.getmtime(spec)]
+    if proc.returncode != 0 and len(done) < len(jobs):
+        print(proc.stdout[-2000:], proc.stderr[-2000:])
+        sys.exit("Blender failed - output above.")
+    for j in done:
+        add_caption(j["out"], cfg)
+    print(f"Rendered {len(done)} mockups -> {os.path.relpath(MOCKUPS)}")
 
 
 # ---------------------------------------------------------------- page
@@ -796,7 +933,8 @@ def message_for(lead, cfg):
 
 def cmd_page(cfg):
     leads = [l for l in load_leads()
-             if l.get("logo") and os.path.exists(os.path.join(MOCKUPS, f"{l['id']}.jpg"))]
+             if l.get("logo") and not too_big(l, cfg)
+             and os.path.exists(os.path.join(MOCKUPS, f"{l['id']}.jpg"))]
     cards = []
     for l in leads:
         esc = html.escape
@@ -824,7 +962,8 @@ def cmd_page(cfg):
       </select>
     </div>
     <p class="meta">{esc(l['category'])} · {l['distance_m'] / 1000:.1f} km
-      {'· @' + esc(l['instagram']) if l['instagram'] else ''}</p>
+      {'· @' + esc(l['instagram']) if l['instagram'] else ''}
+      {f"· {l['followers']} followers" if l.get('followers') is not None else ''}</p>
     <textarea rows="13">{esc(message_for(l, cfg))}</textarea>
     <div class="actions">
       <button class="btn copy">Copy message</button>
@@ -941,7 +1080,8 @@ refresh();
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("command", choices=["find", "logos", "mockups", "page", "all"])
+    p.add_argument("command",
+                   choices=["find", "logos", "followers", "mockups", "page", "all"])
     p.add_argument("--limit", type=int, help="only process this many businesses")
     p.add_argument("--force", action="store_true",
                    help="re-download logos even if one is already saved")
@@ -952,6 +1092,8 @@ def main():
         cmd_find(cfg)
     if args.command in ("logos", "all"):
         cmd_logos(cfg, args.limit, args.force)
+    if args.command in ("followers", "all"):
+        cmd_followers(cfg, args.force)
     if args.command in ("mockups", "all"):
         cmd_mockups(cfg, args.limit)
     if args.command in ("page", "all"):

@@ -21,5 +21,9 @@
   ],
   "require_website": true,
   "show_dimensions": false,
-  "sign_placeholder": "Jeres tekst her"
+  "sign_placeholder": "Jeres tekst her",
+  "max_instagram_followers": 1000,
+  "skip_chains": true,
+  "renderer": "auto",
+  "render_samples": 128
 }

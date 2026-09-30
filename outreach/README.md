@@ -19,6 +19,12 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+For photoreal mockups, install **Blender** (free) from
+[blender.org](https://www.blender.org/download/) and drag it into Applications.
+The tool finds it automatically and renders with Cycles on the M4's GPU
+(a few seconds per business). Without Blender it falls back to a simple
+flat renderer.
+
 ## Run
 
 ```bash
@@ -32,7 +38,8 @@ Or one step at a time:
 |---|---|
 | `python outreach.py find` | Looks up businesses within `radius_m` of the addresses in `config.json` (OpenStreetMap) |
 | `python outreach.py logos` | Visits each website and saves the logo, plus any Instagram handle and e-mail it links to |
-| `python outreach.py mockups` | Renders `data/mockups/<id>.jpg` for every business with a logo |
+| `python outreach.py followers` | Looks up Instagram follower counts and skips accounts over `max_instagram_followers` |
+| `python outreach.py mockups` | Renders `data/mockups/<id>.jpg` in Blender for every business with a logo |
 | `python outreach.py page` | Builds `data/index.html` |
 
 `--limit 20` processes only the first 20 businesses (closest first), which is
@@ -46,6 +53,16 @@ handy for a first test run.
 4. Set the status to **Sent**. Update it to **Replied** or **Won** later.
 
 Statuses are saved in the browser. **Export CSV** downloads them as a backup.
+
+## Skipping big businesses
+
+Chains (anything OpenStreetMap tags with a brand, e.g. Sticks'n'Sushi or
+Joe & The Juice) are dropped in `find`. Businesses whose Instagram has more
+than `max_instagram_followers` (default 1000) are dropped from the mockups
+and the review page. Follower counts are fetched without logging in; if
+Instagram stops answering, the rest are kept and checked on the next run.
+Set `skip_chains` to `false` or `max_instagram_followers` to `null` to turn
+either filter off.
 
 ## When a logo is wrong or missing
 
