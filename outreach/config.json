@@ -1,17 +1,6 @@
 {
   "my_name": "Linus",
-  "message": "Hej {name}!\n\nJeg hedder {my_name}, er 15 år og designer og 3D-printer ting her fra Amager. Jeg har lavet et udkast til et QR-skilt med jeres logo – se billedet. QR-koden kan føre til det I vil: menu, booking, MobilePay eller Google-anmeldelser.\n\n{offer} Skiltene printes i jeres farver, og jeg leverer gratis.\n\nSkal jeg lave det færdigt til jer?\n\nMvh. {my_name}",
-  "offers": {
-    "cafe": "10 stk. til bordene koster 500 kr.",
-    "restaurant": "10 stk. til bordene koster 500 kr.",
-    "bar": "10 stk. til bordene koster 500 kr.",
-    "ice_cream": "10 stk. til bordene koster 500 kr.",
-    "coffee": "10 stk. til bordene koster 500 kr.",
-    "bakery": "Ét skilt til disken koster 99 kr. – to koster 179 kr.",
-    "hairdresser": "Ét skilt til disken koster 99 kr. – to koster 179 kr.",
-    "beauty": "Ét skilt til disken koster 99 kr. – to koster 179 kr.",
-    "default": "Ét skilt til disken koster 99 kr. – to koster 179 kr."
-  },
+  "message": "Hej {name}!\n\nMit navn er {my_name}, og jeg designer og 3D-printer skræddersyede skilte til butikker i området.\n\nSkiltene har en QR-kode, som kan føre til jeres hjemmeside eller jeres Google Maps-side, så jeres kunder hurtigt kan give jer en anmeldelse.\n\nDe fås i 2 varianter: et fladt (hæng det i vinduet eller læg det på bordet) og et med fod, så det kan stå op. Jeg har vedhæftet billeder af begge modeller.\n\nPrisen er 50 kr. for 1 skilt og 120 kr. for 3. Vi kan også aftale en anden pris.\n\nMvh. {my_name}",
   "origins": [
     {
       "label": "home",
@@ -33,11 +22,11 @@
   "sign_text": {
     "cafe": [
       "Scan for menu",
-      "og betal med MobilePay"
+      "eller giv os en anmeldelse"
     ],
     "restaurant": [
       "Scan for menu",
-      "og betal med MobilePay"
+      "eller giv os en anmeldelse"
     ],
     "bar": [
       "Scan for menu",
@@ -53,7 +42,7 @@
     ],
     "coffee": [
       "Scan for menu",
-      "og betal med MobilePay"
+      "eller giv os en anmeldelse"
     ],
     "hairdresser": [
       "Book næste tid",

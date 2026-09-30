@@ -700,9 +700,7 @@ def cmd_mockups(cfg, limit=None):
 # ---------------------------------------------------------------- page
 
 def message_for(lead, cfg):
-    offer = cfg["offers"].get(lead["category"], cfg["offers"]["default"])
-    return cfg["message"].format(name=lead["name"], my_name=cfg["my_name"],
-                                 offer=offer)
+    return cfg["message"].format(name=lead["name"], my_name=cfg["my_name"])
 
 
 def cmd_page(cfg):
@@ -736,7 +734,7 @@ def cmd_page(cfg):
     </div>
     <p class="meta">{esc(l['category'])} · {l['distance_m'] / 1000:.1f} km
       {'· @' + esc(l['instagram']) if l['instagram'] else ''}</p>
-    <textarea rows="11">{esc(message_for(l, cfg))}</textarea>
+    <textarea rows="13">{esc(message_for(l, cfg))}</textarea>
     <div class="actions">
       <button class="btn copy">Copy message</button>
       <a class="btn" href="mockups/{esc(l['id'])}.jpg" download="{esc(l['name'])} mockup.jpg">Save image</a>

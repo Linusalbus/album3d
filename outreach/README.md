@@ -58,9 +58,8 @@ Without it they are skipped and the tool falls back to a PNG icon.
 
 ## Customize
 
-Everything is in `config.json`: your name, the message, the offer per
-business type (a café needs 10 signs for its tables, a salon one for the
-counter), radius, business types and the text on the sign for each type.
-Placeholders in `message`: `{name}`, `{my_name}` and `{offer}`.
+Everything is in `config.json`: your name, the message, radius, business
+types and the text on the sign for each type. Placeholders in `message`:
+`{name}` and `{my_name}`.
 
 `data/` holds scraped business info and logos and is git-ignored.
