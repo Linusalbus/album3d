@@ -3,7 +3,7 @@
     python make_models.py        # writes STL (slicer) + STEP (Fusion 360)
 
 Parts:
-  card        100 x 140 x 2 mm, the sign itself (print flat)
+  card        100 x 140 x 3 mm, the sign itself (print flat)
   base        black foot with a 9 mm deep slot the card stands in
   slot_test   small gauge with three slot widths, to find the right fit
               before printing the full base (~10 min print)
@@ -17,7 +17,7 @@ import cadquery as cq
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-CARD_W, CARD_H, CARD_T, CARD_R = 100.0, 140.0, 2.0, 6.0
+CARD_W, CARD_H, CARD_T, CARD_R = 100.0, 140.0, 3.0, 6.0
 BASE_W, BASE_D, BASE_H, BASE_R = 130.0, 40.0, 14.0, 5.0
 SLOT_DEPTH = 9.0
 SLOT_CLEARANCE = 0.3          # total gap across the card's thickness

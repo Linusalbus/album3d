@@ -94,7 +94,7 @@ leave a review. When someone orders, ask them for their direct review link
 
 | Part | Size | Print |
 |---|---|---|
-| `card` | 100 × 140 × 2 mm | Flat, white PLA. ~23 g. Fast settings below |
+| `card` | 100 × 140 × 3 mm | Flat, white PLA. ~35 g |
 | `base` | 130 × 40 × 14 mm, 9 mm deep slot | Slot up, black PLA, 15 % infill, no supports. ~30 g |
 | `slot_test` | 70 × 22 × 14 mm | Slots with 0.2 / 0.3 / 0.4 mm clearance (numbers engraved) |
 
@@ -103,8 +103,4 @@ light push and doesn't wobble. The base uses 0.3 mm; if another slot fits
 better, set `SLOT_CLEARANCE` in `models/make_models.py` and run
 `pip install cadquery && python models/make_models.py` to regenerate.
 
-A flat, mostly solid part is limited by how much plastic the hotend can
-melt (~21 mm³/s for PLA on the A1), not by layer count or speed settings —
-so the card is 2 mm thick to halve the material. Settings: 0.2 mm layers,
-2 walls, 3 top / 3 bottom layers, 10 % infill, and two cards side by side
-on the plate.
+Print two cards side by side on the plate — the A1 fits both.

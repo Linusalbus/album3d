@@ -738,7 +738,7 @@ def cast(p):
 
 # Physical sizes in mm. The card is the same part in both variants; the
 # standing one just slots into the base.
-PLATE = (100.0, 140.0, 2.0, 6.0)   # width, height, thickness, corner radius
+PLATE = (100.0, 140.0, 3.0, 6.0)   # width, height, thickness, corner radius
 BASE = (130.0, 40.0, 14.0)         # width, depth, height
 
 

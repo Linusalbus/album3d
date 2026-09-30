@@ -20,7 +20,7 @@ import bmesh
 from mathutils import Vector
 
 MM = 0.001
-CARD_W, CARD_H, CARD_T, CARD_R = 100 * MM, 140 * MM, 2 * MM, 6 * MM
+CARD_W, CARD_H, CARD_T, CARD_R = 100 * MM, 140 * MM, 3 * MM, 6 * MM
 BASE_W, BASE_D, BASE_H, BASE_R = 130 * MM, 40 * MM, 14 * MM, 5 * MM
 SINK = 9 * MM          # how deep the standing card sits in the base's slot
 LAYER = 0.2 * MM       # printed layer height, shown as faint lines on the edges
