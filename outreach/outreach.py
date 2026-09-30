@@ -1162,7 +1162,7 @@ def message_for(lead, cfg):
     return cfg["message"].format(name=lead["name"], my_name=cfg["my_name"])
 
 
-def cmd_page(cfg):
+def cmd_page(cfg, quiet=False):
     all_leads = load_leads()
     mark_chains(all_leads, cfg)
     leads = [l for l in all_leads
@@ -1213,7 +1213,10 @@ def cmd_page(cfg):
     path = os.path.join(DATA, "index.html")
     with open(path, "w", encoding="utf-8") as f:
         f.write(page)
-    print(f"Review page with {len(leads)} businesses -> {os.path.relpath(path)}")
+    if not quiet:
+        hidden = sum(1 for l in all_leads if too_big(l, cfg) or l.get("chain"))
+        print(f"Review page with {len(leads)} businesses ({hidden} hidden as chains "
+              f"or over the follower limit) -> {os.path.relpath(path)}")
 
 
 PAGE_TEMPLATE = """<!doctype html>
@@ -1357,16 +1360,32 @@ refresh();
 
 
 def cmd_serve(port=8765):
-    """Serves the review page on localhost so the browser allows copying
-    images to the clipboard."""
+    """Serves the review page on localhost (browsers only allow copying
+    images from http). The page is rebuilt on every load, so a refresh
+    always reflects the latest followers/chain filtering."""
     import functools
     import http.server
     import webbrowser
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=DATA)
-    handler.log_message = lambda *a: None
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path.split("?")[0] in ("/", "/index.html"):
+                cmd_page(load_config(), quiet=True)
+                if self.path.startswith("/?") or self.path == "/":
+                    self.path = "/index.html"
+            super().do_GET()
+
+        def end_headers(self):
+            self.send_header("Cache-Control", "no-store")
+            super().end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    handler = functools.partial(Handler, directory=DATA)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     url = f"http://127.0.0.1:{port}/index.html"
-    print(f"Review page: {url}  (Ctrl+C to stop)")
+    print(f"Review page: {url}  (refresh to pick up changes, Ctrl+C to stop)")
     webbrowser.open(url)
     try:
         server.serve_forever()
