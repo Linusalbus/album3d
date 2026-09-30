@@ -59,13 +59,22 @@ Statuses are saved in the browser. **Export CSV** downloads them as a backup.
 
 ## Skipping big businesses
 
-Chains (anything OpenStreetMap tags with a brand, e.g. Sticks'n'Sushi or
-Joe & The Juice) are dropped in `find`. Businesses whose Instagram has more
-than `max_instagram_followers` (default 1000) are dropped from the mockups
-and the review page. Follower counts are fetched without logging in; if
+The target is small, independent places. `find` flags a place as a chain
+(and leaves it out) when any of these hold:
+
+- OpenStreetMap tags it with a brand
+- another place nearby has the same name or the same website
+- its website is a branch page of a bigger site (`/butikker/…`, `/locations/…`)
+- its name matches `chain_names` in `config.json` (add any you spot)
+
+Businesses whose Instagram has more than `max_instagram_followers` (default
+1000) are dropped too. Follower counts are fetched without logging in; if
 Instagram stops answering, the rest are kept and checked on the next run.
-Set `skip_chains` to `false` or `max_instagram_followers` to `null` to turn
-either filter off.
+
+Places without a website are included (`require_website: false`), since many
+small shops only have Instagram. Their logo is the Instagram profile picture
+(fetched in the `followers` step) or, failing that, their name set as a
+wordmark.
 
 ## When a logo is wrong or missing
 

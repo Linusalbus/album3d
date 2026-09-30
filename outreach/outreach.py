@@ -7,7 +7,7 @@ Instagram accounts banned.
 Usage:
     python outreach.py find       # businesses near home (OpenStreetMap)
     python outreach.py logos      # logo + Instagram/e-mail from each website
-    python outreach.py followers  # skip Instagram accounts over the limit
+    python outreach.py followers  # follower counts (+ profile pic as logo)
     python outreach.py mockups    # photoreal Blender render per business
     python outreach.py page       # data/index.html to review and copy messages
     python outreach.py all        # everything above in order
@@ -172,6 +172,41 @@ def instagram_handle(value):
     return handle if re.fullmatch(r"[A-Za-z0-9_.]{2,30}", handle) else ""
 
 
+LOCATION_PATH = re.compile(
+    r"/(butik|butikker|stores?|locations?|afdeling(er)?|restauranter|"
+    r"caf[eé]er|shops?|find-\w+|vores-\w+)(/|$)", re.I)
+
+
+def _norm(name):
+    return re.sub(r"[^a-z0-9æøå]", "", name.lower().replace("&", "og"))
+
+
+def _domain(url):
+    return urlparse(url).netloc.lower().removeprefix("www.") if url else ""
+
+
+def mark_chains(leads, cfg):
+    """Flags places that are part of a chain: tagged with a brand in OSM,
+    sharing a name or website with another place, linking to a branch page
+    of a bigger site, or matching a known chain in config.json."""
+    names = {}
+    domains = {}
+    for l in leads:
+        names[_norm(l["name"])] = names.get(_norm(l["name"]), 0) + 1
+        d = _domain(l["website"])
+        if d:
+            domains[d] = domains.get(d, 0) + 1
+    known = [_norm(n) for n in cfg.get("chain_names", [])]
+    for l in leads:
+        n, d = _norm(l["name"]), _domain(l["website"])
+        l["chain"] = bool(
+            l["chain"]
+            or names[n] > 1
+            or (d and domains[d] > 1)
+            or (l["website"] and LOCATION_PATH.search(urlparse(l["website"]).path))
+            or any(k and k in n for k in known))
+
+
 def cmd_find(cfg):
     s = session()
     points = []
@@ -224,13 +259,15 @@ def cmd_find(cfg):
         leads[lead_id] = lead
 
     result = sorted(leads.values(), key=lambda l: l["distance_m"])
-    if cfg.get("require_website", True):
+    mark_chains(result, cfg)
+    if cfg.get("require_website", False):
         result = [l for l in result if l["website"]]
     if cfg.get("skip_chains", True):
         chains = [l["name"] for l in result if l["chain"]]
         result = [l for l in result if not l["chain"]]
         if chains:
-            print(f"  skipped {len(chains)} chains (e.g. {', '.join(chains[:3])})")
+            print(f"  skipped {len(chains)} chains/big players "
+                  f"(e.g. {', '.join(sorted(set(chains))[:5])})")
     save_leads(result)
     print(f"Found {len(result)} businesses -> {os.path.relpath(LEADS)}")
 
@@ -383,14 +420,17 @@ def parse_count(text):
     return int(re.sub(r"[.,]", "", num))
 
 
-def instagram_followers(s, handle):
-    """Best effort, no login. Returns None when Instagram won't say."""
+def instagram_profile(s, handle):
+    """Best effort, no login: (follower count, profile picture URL). Either
+    is None when Instagram won't say."""
     r = s.get("https://i.instagram.com/api/v1/users/web_profile_info/",
               params={"username": handle},
               headers={"x-ig-app-id": IG_APP_ID}, timeout=15)
     if r.status_code == 200:
         try:
-            return r.json()["data"]["user"]["edge_followed_by"]["count"]
+            user = r.json()["data"]["user"]
+            return (user["edge_followed_by"]["count"],
+                    user.get("profile_pic_url_hd") or user.get("profile_pic_url"))
         except (ValueError, KeyError, TypeError):
             pass
     if r.status_code in (401, 403, 429):
@@ -398,7 +438,26 @@ def instagram_followers(s, handle):
     r = s.get(f"https://www.instagram.com/{handle}/", timeout=15)
     m = re.search(r'<meta[^>]+content="([\d.,]+\s*[kKmM]?)\s+(?:Followers|følgere)',
                   r.text)
-    return parse_count(m.group(1)) if m else None
+    pic = re.search(r'<meta property="og:image" content="([^"]+)"', r.text)
+    return (parse_count(m.group(1)) if m else None,
+            html.unescape(pic.group(1)) if pic else None)
+
+
+def save_profile_picture(s, lead, url):
+    """Round-cropped Instagram profile picture, used as the logo for places
+    without a website."""
+    img = _decode_image(s.get(url, timeout=15).content)
+    if img is None:
+        return
+    side = min(img.size)
+    img = img.crop(((img.width - side) // 2, (img.height - side) // 2,
+                    (img.width + side) // 2, (img.height + side) // 2))
+    mask = Image.new("L", img.size, 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, side - 1, side - 1), fill=255)
+    img.putalpha(mask)
+    path = os.path.join(LOGOS, f"{lead['id']}.png")
+    img.save(path)
+    lead["logo"] = os.path.relpath(path, DATA)
 
 
 def too_big(lead, cfg):
@@ -409,8 +468,7 @@ def too_big(lead, cfg):
 def cmd_followers(cfg, force=False):
     """Looks up follower counts for leads with an Instagram handle, so big
     accounts (already busy, not the target) can be skipped."""
-    if not cfg.get("max_instagram_followers"):
-        return
+    os.makedirs(LOGOS, exist_ok=True)
     leads = load_leads()
     s = session()
     checked = 0
@@ -418,7 +476,9 @@ def cmd_followers(cfg, force=False):
         if not lead.get("instagram") or ("followers" in lead and not force):
             continue
         try:
-            lead["followers"] = instagram_followers(s, lead["instagram"])
+            lead["followers"], pic = instagram_profile(s, lead["instagram"])
+            if pic and not lead.get("logo"):
+                save_profile_picture(s, lead, pic)
         except PermissionError as e:
             print(f"  Instagram stopped answering ({e}); try again later. "
                   "Unchecked businesses are kept.")
@@ -780,9 +840,34 @@ def dimension(canvas, cam, a, b, offset, label, S):
     d.text((mx, my), label, font=font, fill=col, anchor="mm")
 
 
+def text_logo(name):
+    """The business name set as a clean wordmark, for places with no logo."""
+    words, lines = name.split(), []
+    font = ImageFont.truetype(FONT_BOLD, 120)
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    for w in words:  # greedy wrap into at most two balanced lines
+        if lines and probe.textlength(lines[-1] + " " + w, font=font) < 1150:
+            lines[-1] += " " + w
+        else:
+            lines.append(w)
+    if len(lines) > 2:
+        mid = len(words) // 2
+        lines = [" ".join(words[:mid]), " ".join(words[mid:])]
+    width = int(max(probe.textlength(l, font=font) for l in lines)) + 20
+    img = Image.new("RGBA", (width, 150 * len(lines)), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    for i, line in enumerate(lines):
+        d.text((width / 2, 75 + 150 * i), line, font=font, fill=(29, 29, 31),
+               anchor="mm")
+    return trim(img)
+
+
 def make_face(lead, cfg):
-    logo = Image.open(os.path.join(DATA, lead["logo"])).convert("RGBA")
-    logo = remove_flat_background(logo)
+    if lead.get("logo") and os.path.exists(os.path.join(DATA, lead["logo"])):
+        logo = Image.open(os.path.join(DATA, lead["logo"])).convert("RGBA")
+        logo = remove_flat_background(logo)
+    else:
+        logo = text_logo(lead["name"])
     return render_face(lead, logo, cfg, accent_color(logo))
 
 
@@ -889,7 +974,7 @@ def cmd_mockups(cfg, limit=None, force=False):
     os.makedirs(MOCKUPS, exist_ok=True)
     faces_dir = os.path.join(DATA, "faces")
     os.makedirs(faces_dir, exist_ok=True)
-    leads = [l for l in load_leads() if l.get("logo") and not too_big(l, cfg)]
+    leads = [l for l in load_leads() if not too_big(l, cfg) and not l.get("chain")]
     if not force:
         have = [l for l in leads if os.path.exists(os.path.join(MOCKUPS, f"{l['id']}.jpg"))]
         if have:
@@ -954,7 +1039,7 @@ def message_for(lead, cfg):
 
 def cmd_page(cfg):
     leads = [l for l in load_leads()
-             if l.get("logo") and not too_big(l, cfg)
+             if not too_big(l, cfg) and not l.get("chain")
              and os.path.exists(os.path.join(MOCKUPS, f"{l['id']}.jpg"))]
     cards = []
     for l in leads:
