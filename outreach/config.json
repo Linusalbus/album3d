@@ -1,0 +1,49 @@
+{
+  "my_name": "Linus",
+  "origins": [
+    {"label": "home", "address": "Genuavej 31, 2300 København S, Denmark"},
+    {"label": "school", "address": "Jagtvej 163, 2100 København Ø, Denmark"}
+  ],
+  "radius_m": 3000,
+  "categories": [
+    "amenity=cafe",
+    "amenity=restaurant",
+    "amenity=bar",
+    "amenity=ice_cream",
+    "shop=bakery",
+    "shop=coffee",
+    "shop=hairdresser",
+    "shop=beauty"
+  ],
+  "require_website": true,
+  "product": {
+    "name": "QR-bordskilt",
+    "qty": 10,
+    "price_dkk": 500
+  },
+  "sign_text": {
+    "cafe": ["Scan for menu", "og betal med MobilePay"],
+    "restaurant": ["Scan for menu", "og betal med MobilePay"],
+    "bar": ["Scan for menu", "drinks & snacks"],
+    "ice_cream": ["Scan for menu", "alle vores smage"],
+    "bakery": ["Kan du lide os?", "scan og giv os en anmeldelse"],
+    "coffee": ["Scan for menu", "og betal med MobilePay"],
+    "hairdresser": ["Book næste tid", "scan og vælg et tidspunkt"],
+    "beauty": ["Book næste tid", "scan og vælg et tidspunkt"],
+    "default": ["Scan her", "og besøg vores hjemmeside"]
+  },
+  "message_openers": [
+    "Hej {name}!",
+    "Hej {name} 👋",
+    "Hej med jer hos {name}!"
+  ],
+  "message_body": "Jeg hedder {my_name} og laver 3D-printede {product} til steder her i området. Jeg har lavet et forslag med jeres logo (billede vedhæftet) – QR-koden kan pege på {qr_use}. {qty} stk. koster {price} kr. inkl. levering. Skal jeg sende en gratis prøve?",
+  "qr_use": {
+    "cafe": "jeres menu, MobilePay eller Google-anmeldelser",
+    "restaurant": "jeres menu, MobilePay eller Google-anmeldelser",
+    "bar": "jeres menu eller Instagram",
+    "hairdresser": "jeres online booking",
+    "beauty": "jeres online booking",
+    "default": "jeres hjemmeside, Instagram eller Google-anmeldelser"
+  }
+}
